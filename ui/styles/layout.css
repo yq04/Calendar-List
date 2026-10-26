@@ -308,3 +308,11 @@ body.kal-agenda-hidden .kal-agenda { display: none; }
 /* 字体样式开关：斜体 / 格内居中 */
 body.kal-font-italic { --kal-font-style: italic; }
 body.kal-cell-center { --kal-cell-align: center; }
+
+/* 固定桌面时闲置半透减淡：鼠标移开且无输入焦点时自动降低不透明度，悬停立即恢复清晰 */
+.kal-root {
+  transition: opacity 220ms var(--kal-ease-soft, ease);
+}
+body.kal-window-locked.kal-dock-idle-fade:not(.kal-panel-open) .kal-root:not(:hover):not(:focus-within) {
+  opacity: 0.62;
+}

@@ -318,7 +318,6 @@ async fn local_font_import(path: String) -> Result<fonts::LocalFont, String> {
         .await.map_err(|_| "字体导入未能完成".to_string())?
 }
 
-
 // ---------------------------------------------------------------- 设置
 
 #[tauri::command]
@@ -329,6 +328,321 @@ fn settings_get() -> serde_json::Value {
 #[tauri::command]
 fn settings_set(patch: serde_json::Value) -> Result<serde_json::Value, String> {
     theme::settings_patch(&patch)
+}
+
+// ---------------------------------------------------------------- 开机自启动 (Windows Run 注册表)
+
+const AUTOSTART_REG_PATH: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+const AUTOSTART_VALUE_NAME: &str = "CalendarList";
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AutostartStatus {
+    enabled: bool,
+    exe_path: String,
+    error: Option<String>,
+}
+
+fn current_exe_quoted() -> (String, String) {
+    let raw = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| r"D:\1_app\CalendarList\kal.exe".to_string());
+    let quoted = format!("\"{raw}\"");
+    (raw, quoted)
+}
+
+#[tauri::command]
+fn autostart_status() -> AutostartStatus {
+    let (raw_exe, _) = current_exe_quoted();
+    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+    let enabled = match hkcu.open_subkey(AUTOSTART_REG_PATH) {
+        Ok(key) => key
+            .get_value::<String, _>(AUTOSTART_VALUE_NAME)
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false),
+        Err(_) => false,
+    };
+    AutostartStatus {
+        enabled,
+        exe_path: raw_exe,
+        error: None,
+    }
+}
+
+#[tauri::command]
+fn autostart_set(enabled: bool) -> AutostartStatus {
+    let (raw_exe, quoted_exe) = current_exe_quoted();
+    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+    match hkcu.create_subkey(AUTOSTART_REG_PATH) {
+        Ok((key, _)) => {
+            if enabled {
+                if let Err(e) = key.set_value(AUTOSTART_VALUE_NAME, &quoted_exe) {
+                    return AutostartStatus {
+                        enabled: false,
+                        exe_path: raw_exe,
+                        error: Some(format!("写入开机自启注册表失败: {e}")),
+                    };
+                }
+            } else {
+                let _ = key.delete_value(AUTOSTART_VALUE_NAME);
+                let _ = key.delete_value("Kal");
+            }
+            let _ = store::merge_settings(&serde_json::json!({
+                "desktop": { "autostart": enabled }
+            }));
+            AutostartStatus {
+                enabled,
+                exe_path: raw_exe,
+                error: None,
+            }
+        }
+        Err(e) => AutostartStatus {
+            enabled: false,
+            exe_path: raw_exe,
+            error: Some(format!("打开注册表 Run 项失败: {e}")),
+        },
+    }
+}
+
+// ---------------------------------------------------------------- 桌面固定与多显示器位置布局
+
+fn default_dock_position() -> String {
+    "left-desktop".to_string()
+}
+fn default_width_ratio() -> f32 {
+    0.64
+}
+fn default_height_ratio() -> f32 {
+    0.94
+}
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopDockOpts {
+    #[serde(default)]
+    pub docked: bool,
+    #[serde(default = "default_dock_position")]
+    pub position: String,
+    #[serde(default)]
+    pub monitor: String,
+    #[serde(default = "default_width_ratio")]
+    pub width_ratio: f32,
+    #[serde(default = "default_height_ratio")]
+    pub height_ratio: f32,
+    #[serde(default = "default_true")]
+    pub restore_on_unlock: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopDockStatus {
+    pub docked: bool,
+    pub position: String,
+    pub monitor: String,
+    pub width_ratio: f32,
+    pub height_ratio: f32,
+    pub monitors: Vec<display::DisplayInfo>,
+    pub applied_rect: [i32; 4],
+}
+
+fn read_dock_opts_from_settings() -> DesktopDockOpts {
+    let s = store::read_settings();
+    if let Some(dock_val) = s.pointer("/desktop/dock") {
+        if let Ok(opts) = serde_json::from_value::<DesktopDockOpts>(dock_val.clone()) {
+            return opts;
+        }
+    }
+    DesktopDockOpts {
+        docked: false,
+        position: default_dock_position(),
+        monitor: String::new(),
+        width_ratio: default_width_ratio(),
+        height_ratio: default_height_ratio(),
+        restore_on_unlock: true,
+    }
+}
+
+fn is_currently_docked() -> bool {
+    store::read_settings()
+        .pointer("/desktop/dock/docked")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+fn apply_dock_layout(win: &WebviewWindow, opts: &DesktopDockOpts, is_startup: bool) -> DesktopDockStatus {
+    let hwnd = hwnd_of(win);
+    let monitors = display::list_monitors(hwnd);
+    let prev_settings = store::read_settings();
+    let prev_docked = prev_settings
+        .pointer("/desktop/dock/docked")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    // Pick target monitor (matching requested device name, or current monitor)
+    let target_mon = if !opts.monitor.is_empty() && opts.monitor != "auto" {
+        monitors
+            .iter()
+            .find(|m| m.monitor == opts.monitor)
+            .cloned()
+            .unwrap_or_else(|| display::for_window(hwnd))
+    } else {
+        display::for_window(hwnd)
+    };
+
+    let mut unlocked_window_patch = prev_settings
+        .pointer("/desktop/unlockedWindow")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+
+    let mut applied_rect = [0i32; 4];
+
+    if opts.docked {
+        // Save floating window geometry before docking for the first time
+        if !prev_docked && !is_startup {
+            if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
+                if size.width >= 320 && size.height >= 240 {
+                    unlocked_window_patch = serde_json::json!({
+                        "x": pos.x,
+                        "y": pos.y,
+                        "w": size.width,
+                        "h": size.height,
+                    });
+                }
+            }
+        }
+
+        let work = target_mon.work;
+        let work_w = (work[2] - work[0]).max(640);
+        let work_h = (work[3] - work[1]).max(480);
+        let margin = (14.0 * target_mon.dpi_scale.max(1.0)).round() as i32;
+        let w_ratio = opts.width_ratio.clamp(0.38, 0.94);
+        let h_ratio = opts.height_ratio.clamp(0.55, 0.98);
+
+        let (x, y, w, h) = match opts.position.as_str() {
+            "current" => {
+                let pos = win.outer_position().unwrap_or(tauri::PhysicalPosition::new(work[0] + margin, work[1] + margin));
+                let size = win.outer_size().unwrap_or(tauri::PhysicalSize::new(1080, 760));
+                (pos.x, pos.y, size.width as i32, size.height as i32)
+            }
+            "left-compact" => {
+                let w = ((work_w as f32) * w_ratio.min(0.55)).round() as i32;
+                let h = (((work_h - margin * 2) as f32) * h_ratio.min(0.86)).round() as i32;
+                let x = work[0] + margin;
+                let y = work[1] + (work_h - h) / 2;
+                (x, y, w.max(680), h.max(500))
+            }
+            "left-icon-safe" => {
+                let icon_col = (92.0 * target_mon.dpi_scale.max(1.0)).round() as i32;
+                let avail_w = (work_w - icon_col - margin).max(640);
+                let w = ((avail_w as f32) * w_ratio).round() as i32;
+                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
+                let x = work[0] + icon_col;
+                let y = work[1] + (work_h - h) / 2;
+                (x, y, w.max(680), h.max(520))
+            }
+            "right-desktop" => {
+                let w = ((work_w as f32) * w_ratio).round() as i32;
+                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
+                let x = (work[2] - w - margin).max(work[0]);
+                let y = work[1] + (work_h - h) / 2;
+                (x, y, w.max(680), h.max(520))
+            }
+            "center-desktop" => {
+                let w = ((work_w as f32) * w_ratio).round() as i32;
+                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
+                let x = work[0] + (work_w - w) / 2;
+                let y = work[1] + (work_h - h) / 2;
+                (x, y, w.max(680), h.max(520))
+            }
+            _ => {
+                // Default: "left-desktop" — 占据屏幕左侧（仿原版 DesktopCal 经典左侧铺展）
+                let w = ((work_w as f32) * w_ratio).round() as i32;
+                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
+                let x = work[0] + margin;
+                let y = work[1] + (work_h - h) / 2;
+                (x, y, w.max(680), h.max(520))
+            }
+        };
+
+        let _ = win.set_resizable(true);
+        let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        let _ = win.set_resizable(false);
+        let _ = embed::apply_anchored(hwnd);
+        let _ = embed::set_desktop_owner(hwnd);
+        applied_rect = [x, y, w, h];
+    } else {
+        embed::clear_desktop_owner(hwnd);
+        let _ = win.set_resizable(true);
+        if prev_docked && opts.restore_on_unlock && !is_startup {
+            if let Some(uw) = unlocked_window_patch.as_object() {
+                let g = |k: &str| uw.get(k).and_then(|v| v.as_i64()).map(|v| v as i32);
+                if let (Some(x), Some(y), Some(cw), Some(ch)) = (g("x"), g("y"), g("w"), g("h")) {
+                    if cw >= 320 && ch >= 240 && display::on_any_monitor(x + cw / 2, y + ch / 2) {
+                        let _ = win.set_size(tauri::PhysicalSize::new(cw as u32, ch as u32));
+                        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+                        applied_rect = [x, y, cw, ch];
+                    }
+                }
+            }
+        }
+        if applied_rect == [0, 0, 0, 0] {
+            if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
+                applied_rect = [pos.x, pos.y, size.width as i32, size.height as i32];
+            }
+        }
+    }
+
+    let _ = store::merge_settings(&serde_json::json!({
+        "desktop": {
+            "dock": {
+                "docked": opts.docked,
+                "position": opts.position,
+                "monitor": opts.monitor,
+                "widthRatio": opts.width_ratio.clamp(0.38, 0.94),
+                "heightRatio": opts.height_ratio.clamp(0.55, 0.98),
+            },
+            "unlockedWindow": unlocked_window_patch,
+        }
+    }));
+
+    DesktopDockStatus {
+        docked: opts.docked,
+        position: opts.position.clone(),
+        monitor: if opts.monitor.is_empty() { target_mon.monitor.clone() } else { opts.monitor.clone() },
+        width_ratio: opts.width_ratio.clamp(0.38, 0.94),
+        height_ratio: opts.height_ratio.clamp(0.55, 0.98),
+        monitors,
+        applied_rect,
+    }
+}
+
+#[tauri::command]
+fn desktop_dock_status(window: tauri::WebviewWindow) -> DesktopDockStatus {
+    let hwnd = hwnd_of(&window);
+    let monitors = display::list_monitors(hwnd);
+    let opts = read_dock_opts_from_settings();
+    let applied_rect = match (window.outer_position(), window.outer_size()) {
+        (Ok(p), Ok(s)) => [p.x, p.y, s.width as i32, s.height as i32],
+        _ => [0, 0, 0, 0],
+    };
+    DesktopDockStatus {
+        docked: opts.docked,
+        position: opts.position,
+        monitor: opts.monitor,
+        width_ratio: opts.width_ratio,
+        height_ratio: opts.height_ratio,
+        monitors,
+        applied_rect,
+    }
+}
+
+#[tauri::command]
+fn desktop_apply_dock(opts: DesktopDockOpts, window: tauri::WebviewWindow) -> DesktopDockStatus {
+    apply_dock_layout(&window, &opts, false)
 }
 
 fn check_safe_export_dest(path_str: &str, allowed_exts: &[&str]) -> Result<std::path::PathBuf, String> {
@@ -472,8 +786,10 @@ fn dismiss_window(window: &WebviewWindow) {
             }
         }
     }
-    let _ = embed::apply_anchored(hwnd);
-    let _ = embed::set_desktop_owner(hwnd);
+    if is_currently_docked() {
+        let _ = embed::apply_anchored(hwnd);
+        let _ = embed::set_desktop_owner(hwnd);
+    }
 }
 
 fn summon_window(window: &WebviewWindow, toggle: bool) {
@@ -571,6 +887,9 @@ fn hit_test_self(window: tauri::WebviewWindow) -> Result<String, String> {
 static LAST_GEO_SAVE: Mutex<Option<Instant>> = Mutex::new(None);
 
 fn save_geometry(win: &WebviewWindow) {
+    if is_currently_docked() {
+        return;
+    }
     let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
         return;
     };
@@ -764,6 +1083,10 @@ pub fn run() {
             local_font_import,
             settings_get,
             settings_set,
+            autostart_status,
+            autostart_set,
+            desktop_dock_status,
+            desktop_apply_dock,
             calendar_export_text,
             calendar_export_pdf,
             desktop_status,
@@ -783,13 +1106,12 @@ pub fn run() {
 
             if let Some(win) = app.get_webview_window("main") {
                 restore_geometry(&win);
+                let dock_opts = read_dock_opts_from_settings();
                 let hwnd = hwnd_of(&win);
-                if let Err(e) = embed::apply_anchored(hwnd) {
-                    eprintln!("[kal] anchored 模式应用失败: {e}");
-                }
-                match embed::set_desktop_owner(hwnd) {
-                    Ok(owner) => println!("[kal] 已挂到桌面层 owner=0x{owner:X}"),
-                    Err(e) => eprintln!("[kal] 挂桌面层失败: {e}"),
+                if dock_opts.docked {
+                    let _ = apply_dock_layout(&win, &dock_opts, true);
+                } else {
+                    embed::clear_desktop_owner(hwnd);
                 }
                 println!("[kal] 桌面结构: {}", embed::describe(&scan));
                 let dsp = display::for_window(hwnd);

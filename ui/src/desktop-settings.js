@@ -4,25 +4,52 @@ export function mountDesktopSettings({ mount, bridge }) {
   const section = document.createElement("details");
   section.className = "kal-sec kal-desktop-settings kal-tools-section";
   section.dataset.cat = "general";
+  section.open = true;
+
   const heading = document.createElement("summary");
-  heading.textContent = "桌面快捷操作";
+  heading.className = "kal-sec-title kal-desktop-summary";
+  heading.textContent = "全局快捷键";
+
+  const card = document.createElement("div");
+  card.className = "kal-card-group";
+
+  const row = document.createElement("div");
+  row.className = "kal-row kal-row-rich";
+
+  const meta = document.createElement("div");
+  meta.className = "kal-row-meta";
   const label = document.createElement("label");
+  label.setAttribute("for", "kal-global-hotkey");
+  label.textContent = "启用全局呼出 Win+Alt+C";
+  const status = document.createElement("small");
+  status.className = "kal-row-desc kal-tools-status";
+  status.setAttribute("role", "status");
+  meta.append(label, status);
+
+  const ctl = document.createElement("div");
+  ctl.className = "kal-row-ctl kal-row-ctl-end";
   const input = document.createElement("input");
   input.type = "checkbox";
   input.id = "kal-global-hotkey";
-  label.append(input, document.createTextNode(" 启用全局呼出 Win+Alt+C"));
-  const hint = document.createElement("p");
-  hint.textContent = "再次按快捷键或切换到其他窗口后，Kal 回到桌面。重复启动 Kal 也可呼出已有窗口。";
-  const status = document.createElement("p");
-  status.className = "kal-tools-status";
-  status.setAttribute("role", "status");
+  input.className = "kal-switch";
+  input.setAttribute("aria-label", "启用全局呼出 Win+Alt+C");
   const retry = document.createElement("button");
   retry.className = "kal-btn kal-btn-ghost";
   retry.textContent = "重试注册";
   retry.type = "button";
   retry.hidden = true;
-  section.append(heading, label, hint, status, retry);
-  mount.append(section);
+  ctl.append(retry, input);
+
+  row.append(meta, ctl);
+  card.append(row);
+  section.append(heading, card);
+
+  const generalSec = mount.querySelector("#kal-general-sec");
+  if (generalSec && generalSec.nextSibling) {
+    mount.insertBefore(section, generalSec.nextSibling);
+  } else {
+    mount.append(section);
+  }
 
   function show(result) {
     input.checked = !!result.enabled;
@@ -45,7 +72,7 @@ export function mountDesktopSettings({ mount, bridge }) {
   retry.addEventListener("click", () => update(true));
   input.disabled = true;
   if (bridge.kind !== "shell") {
-    status.textContent = "在 Kal 桌面应用中可启用全局快捷键";
+    status.textContent = "随时按下快捷键快速呼出或隐藏日历窗口";
   } else {
     bridge.desktopStatus().then(show).catch(err => {
       status.textContent = sanitizeUserMessage(err?.message || String(err));

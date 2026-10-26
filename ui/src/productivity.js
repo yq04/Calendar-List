@@ -256,7 +256,7 @@ export function createProductivity({ mount, bridge }) {
         await store.load();
         today = localToday();
         renderCountdowns();
-        message("倒计时保存在本机，不参与云同步");
+        message("");
       } catch (err) { message(sanitizeUserMessage(err?.message || String(err)), true); }
       if (notes.open) await refreshNotes();
     },

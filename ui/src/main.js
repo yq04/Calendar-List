@@ -66,6 +66,17 @@ const state = {
   exportMargin: 6,
   privacyMode: false,
   windowLocked: false,
+  dockConfig: {
+    docked: false,
+    position: "left-desktop",
+    monitor: "",
+    widthRatio: 0.64,
+    heightRatio: 0.94,
+    idleFade: (() => {
+      try { return window.localStorage?.getItem("kal.dockIdleFade") === "true"; } catch { return false; }
+    })(),
+    monitors: [],
+  },
   clickThrough: false,
   viewMode: "month",     // "month" | "week"
   currentAgendaList: [],
@@ -283,7 +294,7 @@ function openCellInlineEditor(cellNode, dateKey) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "kal-cell-inline-input";
-  input.placeholder = "输入安排，回车保存…";
+  input.placeholder = "";
   input.setAttribute("aria-label", `在 ${dateKey} 直接添加安排`);
   bindImeGuard(input);
   wrap.appendChild(input);
@@ -339,6 +350,7 @@ function openCellInlineEditor(cellNode, dateKey) {
   input.addEventListener("blur", () => {
     if (done || isImeComposing(null, input)) return;
     if (!input.value.trim()) cleanup();
+    else if (!state.pendingConfirm) submitInline();
   });
 }
 
@@ -360,7 +372,7 @@ function openAgendaInlineEditor() {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "kal-agenda-inline-new";
-  input.placeholder = "直接输入新安排，回车保存（Esc 取消）…";
+  input.placeholder = "";
   input.setAttribute("aria-label", `在右侧列表直接添加 ${dateKey} 安排`);
   bindImeGuard(input);
   row.appendChild(input);
@@ -407,7 +419,9 @@ function openAgendaInlineEditor() {
     }
   });
   input.addEventListener("blur", () => {
-    if (!done && !isImeComposing(null, input) && !input.value.trim()) cleanup();
+    if (done || isImeComposing(null, input)) return;
+    if (!input.value.trim()) cleanup();
+    else if (!state.pendingConfirm) submit();
   });
 }
 function openCellInlineTaskEdit(taskEl, ev) {
@@ -482,7 +496,10 @@ function openCellInlineTaskEdit(taskEl, ev) {
     }
   });
   input.addEventListener("blur", () => {
-    if (!finished && !isImeComposing(null, input)) restore();
+    if (finished || isImeComposing(null, input)) return;
+    const nextTitle = input.value.trim();
+    if (!nextTitle || nextTitle === ev.title || state.pendingConfirm) restore();
+    else commit();
   });
 }
 
@@ -655,12 +672,31 @@ function openDayMorePopover(dateKey, fullList) {
   const titleEl = el["kal-day-more-title"];
   const listEl = el["kal-day-more-list"];
   if (!pop || !titleEl || !listEl) return;
-  titleEl.textContent = `${dateKey} 全部事项（${fullList.length} 项）`;
+  titleEl.textContent = `${dateKey}（共 ${fullList.length} 项）`;
   listEl.replaceChildren();
+  const writeAllowed = state.writeStatus.available && !state.pendingConfirm;
   for (const ev of fullList) {
     const li = document.createElement("li");
     if (ev.done) li.classList.add("is-done");
-    li.textContent = `${ev.time ? ev.time + " " : ""}${ev.title}`;
+    const caps = getItemCapabilities(ev, { available: writeAllowed });
+    if (caps.canComplete) {
+      const checkBtn = document.createElement("button");
+      checkBtn.type = "button";
+      checkBtn.className = "kal-day-more-check";
+      checkBtn.setAttribute("aria-pressed", String(Boolean(ev.done)));
+      checkBtn.title = ev.done ? "标记未完成" : "标记完成";
+      checkBtn.addEventListener("click", async e => {
+        e.stopPropagation();
+        const expected = buildExpectedSnapshot(ev);
+        await writeAction(() => bridge.itemToggleDone(ev.id, ev.date, !ev.done, expected));
+        closeDayMorePopover();
+      });
+      li.appendChild(checkBtn);
+    }
+    const textSpan = document.createElement("span");
+    textSpan.className = "kal-day-more-text";
+    textSpan.textContent = `${ev.time ? ev.time + " " : ""}${ev.title}`;
+    li.appendChild(textSpan);
     listEl.appendChild(li);
   }
   pop.hidden = false;
@@ -902,7 +938,7 @@ function renderGrid(cells, byDay) {
     if (list.length) {
       const cellLimit = state.viewMode === "week"
         ? taskLimit
-        : (list.length > 3 ? Math.min(taskLimit, 3) : taskLimit);
+        : (list.length > 3 ? Math.min(taskLimit, 2) : Math.min(taskLimit, 3));
       const tasks = document.createElement("div");
       tasks.className = "kal-tasks";
       list.slice(0, cellLimit).forEach((ev, idx) => {
@@ -917,8 +953,18 @@ function renderGrid(cells, byDay) {
           + (dec.priority === "high" ? " is-prio-high" : "");
         t.dataset.idx = `${idx + 1}.`;
         t.textContent = cleanText;
-        t.title = `${ev.time || ""} ${cleanText}（双击可直接修改，拖拽可改期）`.trim();
+        t.title = `${ev.time || ""} ${cleanText}（双击修改，拖拽改期，Alt+点击完成）`.trim();
         bindTaskDragHandle(t, ev);
+        t.addEventListener("click", e => {
+          if (e.altKey && state.writeStatus.available && !state.pendingConfirm) {
+            const caps = getItemCapabilities(ev, { available: true });
+            if (caps.canComplete) {
+              e.stopPropagation();
+              const expected = buildExpectedSnapshot(ev);
+              writeAction(() => bridge.itemToggleDone(ev.id, ev.date, !ev.done, expected));
+            }
+          }
+        });
         t.addEventListener("dblclick", e => {
           e.stopPropagation();
           selectDay(c.key);
@@ -1179,10 +1225,24 @@ async function renderAgenda(key, byDay, seqToken = agendaGuard.next()) {
   }
 }
 
+let transientStatusTimer = null;
 function setWriteStatus(message, error = false) {
+  if (transientStatusTimer) {
+    clearTimeout(transientStatusTimer);
+    transientStatusTimer = null;
+  }
   state.transientStatus = message ? sanitizeUserMessage(message, message) : "";
   state.transientError = Boolean(error);
   renderWriteStatusBar();
+  if (state.transientStatus && !state.transientError && !state.pendingConfirm) {
+    transientStatusTimer = setTimeout(() => {
+      transientStatusTimer = null;
+      if (!state.transientError && !state.pendingConfirm) {
+        state.transientStatus = "";
+        renderWriteStatusBar();
+      }
+    }, 2000);
+  }
 }
 
 function renderWriteStatusBar() {
@@ -1254,13 +1314,11 @@ function syncWriteUi() {
   if (input) {
     input.disabled = blocked;
     if (state.pendingConfirm) {
-      input.placeholder = "请先确认或取消下方待定修改…";
+      input.placeholder = "请先确认或取消待定修改…";
     } else if (!state.writeStatus.available) {
-      input.placeholder = "当前仅可浏览与搜索";
-    } else if (!state.writeStatus.canCreateEvent && state.writeStatus.canCreate) {
-      input.placeholder = "添加安排…（当前仅支持无时间任务）";
+      input.placeholder = "只读模式";
     } else {
-      input.placeholder = "添加安排（默认不设时间）";
+      input.placeholder = "添加安排";
     }
   }
   if (addBtn) addBtn.disabled = blocked;
@@ -1322,15 +1380,15 @@ async function resolvePendingConfirm(accept) {
     return;
   }
   invalidateReads();
-  setWriteStatus("已保存", false);
+  setWriteStatus("", false);
   pending.onConfirmed?.();
   syncWriteUi();
   try {
     await render();
-    if (state.readError) setWriteStatus("已保存（视图读取失败，可点右上角刷新）", false);
+    if (state.readError) setWriteStatus("视图读取失败，可点右上角刷新", false);
     if (state.searchOpen) await runSearch(el["kal-search-input"]?.value || "");
   } catch {
-    setWriteStatus("已保存（视图刷新未完成，可点右上角刷新）", false);
+    setWriteStatus("视图刷新未完成，可点右上角刷新", false);
   }
 }
 
@@ -1386,16 +1444,16 @@ async function writeAction(action, { onConfirmed, onCancelled } = {}) {
   }
 
   invalidateReads();
-  setWriteStatus("已保存", false);
+  setWriteStatus("", false);
   onConfirmed?.();
   syncWriteUi();
   try {
     await render();
-    if (state.readError) setWriteStatus("已保存（视图读取失败，可点右上角刷新）", false);
+    if (state.readError) setWriteStatus("视图读取失败，可点右上角刷新", false);
     if (state.searchOpen) await runSearch(el["kal-search-input"]?.value || "");
   } catch (refreshErr) {
     console.warn("[kal] 写入成功但刷新失败:", refreshErr);
-    setWriteStatus("已保存（视图刷新未完成，可点右上角刷新）", false);
+    setWriteStatus("视图刷新未完成，可点右上角刷新", false);
   }
   return "saved";
 }
@@ -1773,34 +1831,12 @@ function toggleViewMode() {
   render();
 }
 
-// ---------------------------------------------------------------- 窗口位置锁定与鼠标穿透控制 (Phase 2)
+// ---------------------------------------------------------------- 桌面固定（默认占据屏幕左侧）与鼠标穿透控制
 
-async function toggleWindowLock(shiftKey = false) {
+function syncLockUi() {
   const btn = el["kal-lock-btn"];
-  if (shiftKey && bridge?.windowSetClickThrough) {
-    try {
-      const nextCt = !state.clickThrough;
-      await bridge.windowSetClickThrough(nextCt);
-      state.clickThrough = nextCt;
-      if (btn) {
-        btn.classList.toggle("is-active", state.windowLocked || state.clickThrough);
-        const span = btn.querySelector("span");
-        if (span) span.textContent = state.clickThrough ? "已穿透" : (state.windowLocked ? "已锁定" : "锁定");
-      }
-      setWriteStatus(
-        nextCt
-          ? "已开启鼠标穿透（可在系统托盘菜单或按 Win+Alt+C 恢复交互）"
-          : "已恢复正常鼠标交互",
-        false,
-      );
-    } catch (err) {
-      setWriteStatus(sanitizeUserMessage(err?.message || String(err)), true);
-    }
-    return;
-  }
-
-  state.windowLocked = !state.windowLocked;
   document.body.classList.toggle("kal-window-locked", state.windowLocked);
+  document.body.classList.toggle("kal-dock-idle-fade", Boolean(state.dockConfig?.idleFade));
   const headerEl = document.querySelector(".kal-header");
   const spacerEl = document.querySelector(".kal-spacer");
   if (state.windowLocked) {
@@ -1814,9 +1850,93 @@ async function toggleWindowLock(shiftKey = false) {
     btn.classList.toggle("is-active", state.windowLocked || state.clickThrough);
     btn.setAttribute("aria-pressed", String(state.windowLocked));
     const span = btn.querySelector("span");
-    if (span) span.textContent = state.windowLocked ? "已锁定" : "锁定";
+    if (span) {
+      span.textContent = state.clickThrough ? "已穿透" : (state.windowLocked ? "已固定" : "固定");
+    }
   }
-  setWriteStatus(state.windowLocked ? "已锁定窗口位置（再次点击可解锁拖动）" : "已解锁窗口拖动", false);
+}
+
+async function applyDesktopDock(patch = {}, notify = true) {
+  const next = {
+    ...state.dockConfig,
+    ...patch,
+  };
+  next.docked = Boolean(next.docked);
+  next.position = next.position || "left-desktop";
+  next.widthRatio = Number.isFinite(Number(next.widthRatio)) ? Number(next.widthRatio) : 0.64;
+  next.heightRatio = Number.isFinite(Number(next.heightRatio)) ? Number(next.heightRatio) : 0.94;
+  next.idleFade = Boolean(next.idleFade);
+  try { window.localStorage?.setItem("kal.dockIdleFade", String(next.idleFade)); } catch { /* ignore */ }
+  state.dockConfig = next;
+  state.windowLocked = next.docked;
+  syncLockUi();
+
+  const onlyIdleFadeChanged = Object.keys(patch).length === 1 && "idleFade" in patch;
+  if (!onlyIdleFadeChanged && bridge?.desktopApplyDock) {
+    try {
+      const res = await bridge.desktopApplyDock({
+        docked: next.docked,
+        position: next.position,
+        monitor: next.monitor || "",
+        widthRatio: next.widthRatio,
+        heightRatio: next.heightRatio,
+      });
+      if (res && typeof res === "object") {
+        state.dockConfig = {
+          ...state.dockConfig,
+          docked: Boolean(res.docked),
+          position: res.position || state.dockConfig.position,
+          monitor: res.monitor ?? state.dockConfig.monitor,
+          widthRatio: res.widthRatio ?? state.dockConfig.widthRatio,
+          heightRatio: res.heightRatio ?? state.dockConfig.heightRatio,
+          monitors: Array.isArray(res.monitors) ? res.monitors : state.dockConfig.monitors,
+        };
+      }
+    } catch (err) {
+      console.warn("[kal] 应用桌面固定布局异常:", err);
+    }
+  }
+
+  panel?.syncDockUi?.();
+  if (notify) {
+    const posLabels = {
+      "left-desktop": "屏幕左侧",
+      "left-icon-safe": "左侧避让图标区",
+      "left-compact": "左侧适中",
+      "right-desktop": "屏幕右侧",
+      "center-desktop": "桌面居中",
+      "current": "当前位置",
+    };
+    const posName = posLabels[state.dockConfig.position] || "屏幕左侧";
+    setWriteStatus(
+      state.windowLocked ? `已固定到桌面（${posName}）` : "已恢复为可移动窗口",
+      false,
+    );
+  }
+  return state.dockConfig;
+}
+
+async function toggleWindowLock(shiftKey = false) {
+  const btn = el["kal-lock-btn"];
+  if (shiftKey && bridge?.windowSetClickThrough) {
+    try {
+      const nextCt = !state.clickThrough;
+      await bridge.windowSetClickThrough(nextCt);
+      state.clickThrough = nextCt;
+      syncLockUi();
+      setWriteStatus(
+        nextCt
+          ? "已开启鼠标穿透（可在系统托盘菜单或按 Win+Alt+C 恢复交互）"
+          : "已恢复正常鼠标交互",
+        false,
+      );
+    } catch (err) {
+      setWriteStatus(sanitizeUserMessage(err?.message || String(err)), true);
+    }
+    return;
+  }
+
+  await applyDesktopDock({ docked: !state.windowLocked }, true);
 }
 
 // ---------------------------------------------------------------- 年月快速跳转弹层
@@ -2235,13 +2355,13 @@ async function initHolidayEditor() {
         txt.value = JSON.stringify(res.entries, null, 2);
         setHolidayMsg(`已加载 ${res.count} 条自定义节假日规则`);
       } else {
-        setHolidayMsg("支持粘贴 GitHub NateScarlet/holiday-cn 年度 JSON");
+        setHolidayMsg("");
       }
     } else {
-      setHolidayMsg("支持粘贴 GitHub NateScarlet/holiday-cn 年度 JSON");
+      setHolidayMsg("");
     }
   } catch {
-    setHolidayMsg("支持粘贴 GitHub NateScarlet/holiday-cn 年度 JSON");
+    setHolidayMsg("");
   }
 
   sampleBtn?.addEventListener("click", () => {
@@ -2527,11 +2647,32 @@ async function boot() {
     onExport: exportTheme,
     onImport: importTheme,
     onUndo: () => performUndo(),
+    getDockConfig: () => state.dockConfig,
+    onApplyDock: (patch, notify = true) => applyDesktopDock(patch, notify),
     bridge,
     localFonts,
   });
   mountDesktopSettings({ mount: document.querySelector(".kal-panel-body"), bridge });
   panel.refreshLibrary();
+
+  if (bridge?.desktopDockStatus) {
+    bridge.desktopDockStatus().then(dockRes => {
+      if (dockRes && typeof dockRes === "object") {
+        state.dockConfig = {
+          ...state.dockConfig,
+          docked: Boolean(dockRes.docked),
+          position: dockRes.position || state.dockConfig.position,
+          monitor: dockRes.monitor ?? state.dockConfig.monitor,
+          widthRatio: dockRes.widthRatio ?? state.dockConfig.widthRatio,
+          heightRatio: dockRes.heightRatio ?? state.dockConfig.heightRatio,
+          monitors: Array.isArray(dockRes.monitors) ? dockRes.monitors : state.dockConfig.monitors,
+        };
+        state.windowLocked = Boolean(dockRes.docked);
+        syncLockUi();
+        panel?.syncDockUi?.();
+      }
+    }).catch(() => {});
+  }
 
   try {
     bridge.on("kal://settings", () => panel.open());
@@ -2541,12 +2682,7 @@ async function boot() {
     });
     bridge.on("kal://click-through", ev => {
       state.clickThrough = Boolean(ev?.payload);
-      const btn = el["kal-lock-btn"];
-      if (btn) {
-        btn.classList.toggle("is-active", state.windowLocked || state.clickThrough);
-        const span = btn.querySelector("span");
-        if (span) span.textContent = state.clickThrough ? "已穿透" : (state.windowLocked ? "已锁定" : "锁定");
-      }
+      syncLockUi();
     });
   } catch { /* 浏览器里没有 */ }
 
@@ -2866,9 +3002,40 @@ function bindControls() {
     }
     if (panel?.isOpen()) return;
     if (state.searchOpen || state.ymOpen || state.exportOpen) return;
-    if (e.target?.matches?.("input, textarea, [contenteditable]")) return;
-    if (e.key === "ArrowLeft") goto(-1);
-    else if (e.key === "ArrowRight") goto(1);
+    if (e.target?.matches?.("input, textarea, select, [contenteditable]")) return;
+    if (e.key === "PageUp") { e.preventDefault(); goto(-1); }
+    else if (e.key === "PageDown") { e.preventDefault(); goto(1); }
+    else if (e.key === "ArrowLeft") {
+      if (e.shiftKey && state.selected) {
+        e.preventDefault();
+        selectDay(addDaysToKey(state.selected, -1));
+      } else {
+        goto(-1);
+      }
+    }
+    else if (e.key === "ArrowRight") {
+      if (e.shiftKey && state.selected) {
+        e.preventDefault();
+        selectDay(addDaysToKey(state.selected, 1));
+      } else {
+        goto(1);
+      }
+    }
+    else if (e.key === "ArrowUp" && state.selected) {
+      e.preventDefault();
+      selectDay(addDaysToKey(state.selected, -7));
+    }
+    else if (e.key === "ArrowDown" && state.selected) {
+      e.preventDefault();
+      selectDay(addDaysToKey(state.selected, 7));
+    }
+    else if (e.key === "Enter" && state.selected && !e.target?.closest?.("button, a, [role='button'], summary")) {
+      const cellNode = el["kal-grid"]?.querySelector(`.kal-cell[data-key="${state.selected}"]`);
+      if (cellNode) {
+        e.preventDefault();
+        openCellInlineEditor(cellNode, state.selected);
+      }
+    }
     else if (e.key === "w" || e.key === "W") {
       toggleViewMode();
     }

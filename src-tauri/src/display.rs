@@ -23,9 +23,11 @@
 #![allow(non_snake_case)]
 
 use crate::embed::Hwnd;
-use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
+use windows_sys::core::BOOL;
+use windows_sys::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{
-    CreateDCW, DeleteDC, GetDeviceCaps, DESKTOPHORZRES, DESKTOPVERTRES, HORZSIZE, VERTSIZE,
+    CreateDCW, DeleteDC, EnumDisplayMonitors, GetDeviceCaps, DESKTOPHORZRES, DESKTOPVERTRES,
+    HDC, HMONITOR, HORZSIZE, VERTSIZE,
 };
 use windows_sys::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromPoint, MonitorFromWindow, MONITORINFO, MONITORINFOEXW,
@@ -90,17 +92,11 @@ struct Mon {
     work: RECT,
 }
 
-fn monitor_of(hwnd: Hwnd) -> Option<Mon> {
+fn mon_from_handle(mon: HMONITOR) -> Option<Mon> {
+    if mon.is_null() {
+        return None;
+    }
     unsafe {
-        let mon = if hwnd != 0 {
-            MonitorFromWindow(hwnd as HWND, MONITOR_DEFAULTTONEAREST)
-        } else {
-            MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY)
-        };
-        if mon.is_null() {
-            return None;
-        }
-
         // MONITORINFOEXW 要比 MONITORINFO 大，cbSize 必须给足，否则拿不到 szDevice
         let mut mi: MONITORINFOEXW = std::mem::zeroed();
         mi.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
@@ -121,10 +117,18 @@ fn monitor_of(hwnd: Hwnd) -> Option<Mon> {
     }
 }
 
-/// 取某个窗口所在显示器的信息；hwnd 为 0 时取主屏
-pub fn for_window(hwnd: Hwnd) -> DisplayInfo {
-    let mon = monitor_of(hwnd);
+fn monitor_of(hwnd: Hwnd) -> Option<Mon> {
+    unsafe {
+        let mon = if hwnd != 0 {
+            MonitorFromWindow(hwnd as HWND, MONITOR_DEFAULTTONEAREST)
+        } else {
+            MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY)
+        };
+        mon_from_handle(mon)
+    }
+}
 
+fn info_from_mon(mon: Option<Mon>, hwnd: Hwnd) -> DisplayInfo {
     let (device, rect, work) = match &mon {
         Some(m) => (
             m.device.clone(),
@@ -137,10 +141,12 @@ pub fn for_window(hwnd: Hwnd) -> DisplayInfo {
     let dpi = {
         let d = if hwnd != 0 { crate::embed::window_dpi(hwnd) } else { 0 };
         if d == 0 {
-            unsafe { windows_sys::Win32::Graphics::Gdi::GetDeviceCaps(
-                CreateDCW(wide("DISPLAY").as_ptr(), std::ptr::null(), std::ptr::null(), std::ptr::null()),
-                88,
-            ) as u32 }
+            unsafe {
+                windows_sys::Win32::Graphics::Gdi::GetDeviceCaps(
+                    CreateDCW(wide("DISPLAY").as_ptr(), std::ptr::null(), std::ptr::null(), std::ptr::null()),
+                    88,
+                ) as u32
+            }
         } else {
             d
         }
@@ -181,6 +187,43 @@ pub fn for_window(hwnd: Hwnd) -> DisplayInfo {
         work,
         rect,
     }
+}
+
+/// 取某个窗口所在显示器的信息；hwnd 为 0 时取主屏
+pub fn for_window(hwnd: Hwnd) -> DisplayInfo {
+    info_from_mon(monitor_of(hwnd), hwnd)
+}
+
+unsafe extern "system" fn enum_monitor_cb(
+    hmon: HMONITOR,
+    _hdc: HDC,
+    _rc: *mut RECT,
+    lparam: LPARAM,
+) -> BOOL {
+    let vec_ptr = lparam as *mut Vec<Mon>;
+    if !vec_ptr.is_null() {
+        if let Some(m) = mon_from_handle(hmon) {
+            (*vec_ptr).push(m);
+        }
+    }
+    1
+}
+
+/// 枚举当前连接的所有显示器信息
+pub fn list_monitors(hwnd: Hwnd) -> Vec<DisplayInfo> {
+    let mut mons: Vec<Mon> = Vec::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            std::ptr::null_mut(),
+            std::ptr::null(),
+            Some(enum_monitor_cb),
+            &mut mons as *mut Vec<Mon> as LPARAM,
+        );
+    }
+    if mons.is_empty() {
+        return vec![for_window(hwnd)];
+    }
+    mons.into_iter().map(|m| info_from_mon(Some(m), hwnd)).collect()
 }
 
 /// 某点是否落在任意显示器上。恢复窗口位置时用来防止窗口跑到屏外再也找不回来。

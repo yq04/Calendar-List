@@ -342,7 +342,7 @@ export const ART_BACKDROPS = [
 export const STYLE_RECIPES = [
   {
     id: "transparent",
-    name: "✨ 纯透悬浮",
+    name: "纯透悬浮",
     desc: "0%全透明底穿透桌面，开启文字护航光晕",
     patch: {
       "color.bgAlpha": 0,
@@ -360,7 +360,7 @@ export const STYLE_RECIPES = [
   },
   {
     id: "frosted",
-    name: "🧊 冰晶毛玻璃",
+    name: "冰晶毛玻璃",
     desc: "半透磨砂质感与细腻内高光圆角卡片",
     patch: {
       "color.bgAlpha": 0.50,
@@ -380,7 +380,7 @@ export const STYLE_RECIPES = [
   },
   {
     id: "canvas",
-    name: "🖼️ 沉浸画布",
+    name: "沉浸画布",
     desc: "内嵌艺术/自定义壁纸画布，带氛围暗角与微磨砂",
     patch: {
       "color.bgAlpha": 0.34,
@@ -400,7 +400,7 @@ export const STYLE_RECIPES = [
   },
   {
     id: "paper",
-    name: "📄 温润实底",
+    name: "温润实底",
     desc: "100%不透明纯净纸感，无模糊零干扰",
     patch: {
       "color.bgAlpha": 1,
@@ -418,7 +418,7 @@ export const STYLE_RECIPES = [
   },
   {
     id: "grid",
-    name: "📐 经典网格",
+    name: "经典网格",
     desc: "无缝连线表格日历，紧凑清晰",
     patch: {
       "color.lineAlpha": 0.24,
@@ -431,7 +431,7 @@ export const STYLE_RECIPES = [
   },
   {
     id: "minimal",
-    name: "🔮 极简无框",
+    name: "极简无框",
     desc: "隐去格框与冗余线条，纯粹呈现日期与安排",
     patch: {
       "color.bgAlpha": 0.76,
@@ -502,7 +502,7 @@ export const FONT_PRESETS = [
 export const CONTENT_PRESETS = [
   {
     id: "standard-wrap",
-    name: "📖 标准全显（默认）",
+    name: "标准全显（默认）",
     desc: "自动多行换行，完整呈现日程，字号均衡",
     patch: {
       "layout.taskWrap": "wrap",
@@ -516,8 +516,8 @@ export const CONTENT_PRESETS = [
   },
   {
     id: "large-comfort",
-    name: "🔍 大字护眼",
-    desc: "加大日期与事项字号，自动换行，长辈与高分屏友好",
+    name: "大字护眼",
+    desc: "加大日期与事项字号，自动换行，高分屏友好",
     patch: {
       "layout.taskWrap": "wrap",
       "layout.maxTasks": 3,
@@ -530,7 +530,7 @@ export const CONTENT_PRESETS = [
   },
   {
     id: "clamp-2",
-    name: "📑 两行精简",
+    name: "两行精简",
     desc: "超长事项最多折两行，兼顾完整度与整洁度",
     patch: {
       "layout.taskWrap": "clamp2",
@@ -543,7 +543,7 @@ export const CONTENT_PRESETS = [
   },
   {
     id: "compact-single",
-    name: "⚡ 高密单行",
+    name: "高密单行",
     desc: "单行省略排版，单格可容纳最多 6 条日程",
     patch: {
       "layout.taskWrap": "nowrap",
@@ -646,8 +646,8 @@ export const I18N_BUNDLES = {
     today: "今天",
     weekView: "周视图",
     monthView: "月视图",
-    lock: "锁定",
-    locked: "已锁定",
+    lock: "固定",
+    locked: "已固定",
     privacy: "防窥",
     privacyOn: "已防窥",
     glass: "透明底",
@@ -655,15 +655,15 @@ export const I18N_BUNDLES = {
     exportBtn: "导出",
     rollover: "顺延",
     copy: "复制",
-    addPlaceholder: "添加安排（默认不设时间）",
-    timePlaceholder: "可选 HH:MM",
+    addPlaceholder: "添加安排",
+    timePlaceholder: "HH:MM",
   },
   "zh-TW": {
     today: "今天",
     weekView: "週視圖",
     monthView: "月視圖",
-    lock: "鎖定",
-    locked: "已鎖定",
+    lock: "固定",
+    locked: "已固定",
     privacy: "防窺",
     privacyOn: "已防窺",
     glass: "透明底",
@@ -671,15 +671,15 @@ export const I18N_BUNDLES = {
     exportBtn: "匯出",
     rollover: "順延",
     copy: "複製",
-    addPlaceholder: "新增安排（預設不設時間）",
-    timePlaceholder: "選填 HH:MM",
+    addPlaceholder: "新增安排",
+    timePlaceholder: "HH:MM",
   },
   "en": {
     today: "Today",
     weekView: "Week",
     monthView: "Month",
-    lock: "Lock",
-    locked: "Locked",
+    lock: "Pin",
+    locked: "Pinned",
     privacy: "Privacy",
     privacyOn: "Masked",
     glass: "Glass",
@@ -687,8 +687,8 @@ export const I18N_BUNDLES = {
     exportBtn: "Export",
     rollover: "+1d",
     copy: "Copy",
-    addPlaceholder: "Add task (no time by default)…",
-    timePlaceholder: "Optional HH:MM",
+    addPlaceholder: "Add task",
+    timePlaceholder: "HH:MM",
   },
 };
 

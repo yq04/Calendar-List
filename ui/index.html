@@ -18,14 +18,14 @@
     <div class="kal-backdrop-vignette"></div>
   </div>
   <header class="kal-header" data-tauri-drag-region>
-    <div class="kal-title" id="kal-title-trigger" title="点击快速选择年份与月份">
+    <div class="kal-title" id="kal-title-trigger" title="选择年份与月份">
       <img class="kal-brand-logo" src="./favicon.png" alt="日历清单" width="22" height="22" />
       <span id="kal-month-label" class="kal-month-label">--</span>
       <div class="kal-title-meta">
         <span id="kal-year-label" class="kal-year-label"></span>
         <span id="kal-lunar-year" class="kal-lunar-year"></span>
-        <span id="kal-week-badge" class="kal-week-badge" title="当前选中日期所在周次"></span>
-        <span id="kal-app-version" class="kal-version-pill" title="日历清单 · Calendar List v0.1.0">v0.1.0</span>
+        <span id="kal-week-badge" class="kal-week-badge" title="当前周次"></span>
+        <span id="kal-app-version" class="kal-version-pill" title="日历清单 v0.1.0">v0.1.0</span>
       </div>
     </div>
     <nav class="kal-nav">
@@ -33,27 +33,27 @@
       <button id="kal-today" class="kal-btn kal-btn-ghost" title="回到今天 (T)">今天</button>
       <button id="kal-next" class="kal-btn kal-btn-icon" title="下个月" aria-label="下个月"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
       <button id="kal-view-toggle" class="kal-btn kal-btn-ghost" type="button"
-              title="切换月视图 / 周视图 (快捷键 W)" aria-pressed="false" aria-label="切换周视图">周视图</button>
+              title="切换月视图 / 周视图 (W)" aria-pressed="false" aria-label="切换周视图">周视图</button>
     </nav>
-    <div class="kal-spacer" data-tauri-drag-region title="按住此处可拖动桌面日历窗口"></div>
+    <div class="kal-spacer" data-tauri-drag-region></div>
     <div class="kal-meta">
       <span id="kal-display-tag" class="kal-tag" title="当前显示器"></span>
-      <span id="kal-source-tag" class="kal-tag" title="当前主题 / 数据来源">-</span>
+      <span id="kal-source-tag" class="kal-tag" title="当前主题">-</span>
       <button id="kal-lock-btn" class="kal-btn kal-btn-ghost" type="button"
-              title="锁定窗口位置防误拖（Shift+点击开启桌面鼠标穿透，托盘可恢复）" aria-pressed="false" aria-label="锁定窗口位置"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>锁定</span></button>
+              title="固定到桌面（默认占据屏幕左侧，可在设置中调整位置；Shift+点击开启鼠标穿透）" aria-pressed="false" aria-label="固定到桌面"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>固定</span></button>
       <button id="kal-privacy-btn" class="kal-btn kal-btn-ghost" type="button"
-              title="一键隐藏/显示日历与清单文字内容 (防窥遮罩)" aria-pressed="false" aria-label="防窥遮罩"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>防窥</span></button>
+              title="防窥遮罩" aria-pressed="false" aria-label="防窥遮罩"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>防窥</span></button>
       <button id="kal-quick-glass" class="kal-btn kal-btn-ghost" type="button"
-              title="一键预览切换：纯透悬浮桌面 / 恢复当前主题底色" aria-label="切换透明底"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z"/><path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z"/></svg><span>透明底</span></button>
+              title="切换透明底" aria-label="切换透明底"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z"/><path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z"/></svg><span>透明底</span></button>
       <button id="kal-search-btn" class="kal-btn kal-btn-ghost" type="button"
-              title="搜索所有日期的安排 (Ctrl+F)" aria-label="搜索安排"
+              title="搜索 (Ctrl+F)" aria-label="搜索安排"
               aria-expanded="false" aria-controls="kal-search-popover"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>搜索</span></button>
       <button id="kal-export-btn" class="kal-btn kal-btn-ghost" type="button"
-              title="导出日历为横向满幅 PDF 或结构化 Markdown (.md / .pdf / .ics)" aria-label="导出日历"
+              title="导出与导入日历" aria-label="导出日历"
               aria-expanded="false" aria-controls="kal-export-popover"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>导出</span></button>
       <button id="kal-refresh" class="kal-btn kal-btn-icon kal-btn-ghost" type="button"
-              title="重新检查状态并刷新日历" aria-label="重新检查状态并刷新日历"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
-      <button id="kal-settings" class="kal-btn kal-btn-icon kal-btn-ghost" title="个性化设置" aria-label="个性化设置"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
+              title="刷新" aria-label="重新检查状态并刷新日历"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+      <button id="kal-settings" class="kal-btn kal-btn-icon kal-btn-ghost" title="设置" aria-label="个性化设置"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
     </div>
   </header>
 
@@ -69,10 +69,10 @@
   <section id="kal-search-popover" class="kal-search-popover" hidden aria-label="搜索安排">
     <div class="kal-search-bar">
       <input id="kal-search-input" class="kal-search-input" type="search"
-             placeholder="搜索所有日期的安排（支持中文、时间、日期）…"
+             placeholder="搜索安排…"
              aria-label="搜索关键词" autocomplete="off" />
       <button id="kal-search-close" class="kal-btn kal-btn-ghost kal-search-close"
-              type="button" title="关闭搜索 (Esc)" aria-label="关闭搜索">关闭</button>
+              type="button" title="关闭 (Esc)" aria-label="关闭搜索">关闭</button>
     </div>
     <div id="kal-search-filters" class="kal-search-filters" role="group" aria-label="搜索完成状态筛选">
       <button type="button" class="kal-filter-chip is-active" data-filter="all">全部</button>
@@ -85,13 +85,13 @@
 
   <section id="kal-export-popover" class="kal-export-popover" hidden aria-label="导出与打印日历">
     <div class="kal-export-head">
-      <span class="kal-export-title">导出与导入日历 (.pdf / .md / .ics)</span>
-      <button id="kal-export-close" class="kal-btn kal-btn-ghost" type="button" title="关闭导出面板 (Esc)">关闭</button>
+      <span class="kal-export-title">导出与导入</span>
+      <button id="kal-export-close" class="kal-btn kal-btn-ghost" type="button" title="关闭 (Esc)">关闭</button>
     </div>
     <div class="kal-export-row">
       <span>纸张方向</span>
       <div class="kal-export-seg" id="kal-export-orient" role="group" aria-label="纸张方向">
-        <button type="button" class="kal-filter-chip is-active" data-orient="landscape">横向铺满 (推荐)</button>
+        <button type="button" class="kal-filter-chip is-active" data-orient="landscape">横向</button>
         <button type="button" class="kal-filter-chip" data-orient="portrait">纵向</button>
       </div>
     </div>
@@ -100,30 +100,30 @@
       <div class="kal-export-seg" id="kal-export-paper" role="group" aria-label="纸张尺寸">
         <button type="button" class="kal-filter-chip is-active" data-paper="A4">A4</button>
         <button type="button" class="kal-filter-chip" data-paper="Letter">Letter</button>
-        <button type="button" class="kal-filter-chip" data-paper="A3">A3 海报</button>
+        <button type="button" class="kal-filter-chip" data-paper="A3">A3</button>
       </div>
     </div>
     <div class="kal-export-row">
-      <span>打印区域占比</span>
+      <span>页面边距</span>
       <div class="kal-export-seg" id="kal-export-margin" role="group" aria-label="打印区域边距">
-        <button type="button" class="kal-filter-chip is-active" data-margin="6">满幅占满 (96%)</button>
-        <button type="button" class="kal-filter-chip" data-margin="10">标准留白</button>
+        <button type="button" class="kal-filter-chip is-active" data-margin="6">满幅</button>
+        <button type="button" class="kal-filter-chip" data-margin="10">标准</button>
       </div>
     </div>
     <div class="kal-export-checks">
-      <label><input type="checkbox" id="kal-export-lunar" checked /> 显示农历与休/班</label>
-      <label><input type="checkbox" id="kal-export-almanac" checked /> 显示干支与统计</label>
-      <label><input type="checkbox" id="kal-export-completed" checked /> 包含已完成事项</label>
-      <label><input type="checkbox" id="kal-export-detail" checked /> MD 附每日明细</label>
+      <label><input type="checkbox" id="kal-export-lunar" checked /> 农历与休/班</label>
+      <label><input type="checkbox" id="kal-export-almanac" checked /> 干支与统计</label>
+      <label><input type="checkbox" id="kal-export-completed" checked /> 已完成事项</label>
+      <label><input type="checkbox" id="kal-export-detail" checked /> 附每日明细</label>
     </div>
     <div class="kal-export-actions">
-      <button id="kal-export-pdf" class="kal-btn kal-export-primary" type="button" title="导出单页横向满幅 PDF 日历文档">导出 PDF (.pdf)</button>
-      <button id="kal-export-md" class="kal-btn" type="button" title="导出 GFM 表格 + 待办清单 Markdown (.md)">导出 Markdown (.md)</button>
-      <button id="kal-export-import-ics" class="kal-btn kal-btn-ghost" type="button" title="从标准 RFC 5545 .ics 文件导入日程">导入 .ics</button>
-      <button id="kal-export-print" class="kal-btn kal-btn-ghost" type="button" title="调用系统横向打印预览">打印预览</button>
+      <button id="kal-export-pdf" class="kal-btn kal-export-primary" type="button">导出 PDF</button>
+      <button id="kal-export-md" class="kal-btn" type="button">导出 Markdown</button>
+      <button id="kal-export-import-ics" class="kal-btn kal-btn-ghost" type="button">导入 .ics</button>
+      <button id="kal-export-print" class="kal-btn kal-btn-ghost" type="button">打印预览</button>
     </div>
     <input id="kal-ics-file-input" type="file" accept=".ics,text/calendar" hidden />
-    <div id="kal-export-status" class="kal-export-status" role="status" aria-live="polite">默认采用 A4 横向满幅排版，格内事项自动换行不截断。</div>
+    <div id="kal-export-status" class="kal-export-status" role="status" aria-live="polite"></div>
   </section>
 
   <section id="kal-day-more-popover" class="kal-day-more-popover" hidden aria-label="当日全部事项">
@@ -145,22 +145,22 @@
         <div class="kal-agenda-head-right">
           <span id="kal-agenda-count" class="kal-count"></span>
           <button id="kal-undo-btn" class="kal-btn kal-btn-ghost kal-agenda-copy-btn" type="button" hidden
-                  title="撤销上一步操作 (Ctrl+Z)" aria-label="撤销">撤销</button>
+                  title="撤销 (Ctrl+Z)" aria-label="撤销">撤销</button>
           <button id="kal-rollover-btn" class="kal-btn kal-btn-ghost kal-agenda-copy-btn" type="button"
-                  title="将当日未完成事项顺延 +1 天（Shift+点击顺延 +1 周）" aria-label="顺延未完成">顺延</button>
+                  title="顺延未完成事项" aria-label="顺延未完成">顺延</button>
           <button id="kal-agenda-copy" class="kal-btn kal-btn-ghost kal-agenda-copy-btn" type="button"
-                  title="一键复制当天清单为 Markdown（Shift+点击复制整月）" aria-label="复制当天清单">复制</button>
+                  title="复制当天清单" aria-label="复制当天清单">复制</button>
           <button id="kal-agenda-ics" class="kal-btn kal-btn-ghost kal-agenda-copy-btn" type="button"
-                  title="导出/复制标准 iCalendar (.ics) 日程格式（Shift+点击导出整月）" aria-label="导出 ICS 日历">ICS</button>
+                  title="导出 .ics" aria-label="导出 ICS 日历">ICS</button>
         </div>
       </div>
       <div id="kal-agenda-sub" class="kal-agenda-sub"></div>
       <form id="kal-agenda-add" class="kal-agenda-add" autocomplete="off">
         <div class="kal-agenda-add-main">
           <input id="kal-agenda-input" class="kal-agenda-input" type="text"
-                 placeholder="添加安排（默认不设时间）" aria-label="添加安排" />
+                 placeholder="添加安排" aria-label="添加安排" />
           <button id="kal-time-toggle-btn" class="kal-btn kal-btn-icon kal-time-toggle-btn" type="button"
-                  title="手动指定时间或日期（可选，默认不设时间）" aria-expanded="false"
+                  title="时间与选项" aria-expanded="false"
                   aria-controls="kal-agenda-add-meta" aria-label="手动指定时间"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg></button>
           <button class="kal-btn kal-btn-icon kal-agenda-add-btn" type="submit" title="添加安排"><svg class="kal-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
         </div>
@@ -168,13 +168,13 @@
           <div class="kal-agenda-meta-row">
             <label class="kal-agenda-meta-label" for="kal-agenda-time-input">时间</label>
             <input id="kal-agenda-time-input" class="kal-agenda-time-input" type="text"
-                   inputmode="numeric" maxlength="5" placeholder="可选 HH:MM"
-                   aria-label="手动输入时间（可选，如 09:30）" />
+                   inputmode="numeric" maxlength="5" placeholder="HH:MM"
+                   aria-label="手动输入时间" />
             <div class="kal-agenda-time-presets" role="group" aria-label="快捷时间">
               <button type="button" class="kal-time-chip" data-time="09:00">09:00</button>
               <button type="button" class="kal-time-chip" data-time="14:00">14:00</button>
               <button type="button" class="kal-time-chip" data-time="20:00">20:00</button>
-              <button type="button" class="kal-time-chip is-clear" data-time="" title="恢复默认无时间">无时间</button>
+              <button type="button" class="kal-time-chip is-clear" data-time="">无时间</button>
             </div>
           </div>
           <div class="kal-agenda-meta-row">
@@ -182,7 +182,7 @@
             <input id="kal-agenda-date-input" class="kal-agenda-date-input" type="date"
                    min="1970-01-01" max="2099-12-31" aria-label="安排目标日期" />
             <button type="button" id="kal-agenda-prio-btn" class="kal-time-chip kal-prio-chip"
-                    aria-pressed="false" title="标记为重点安排">! 重要</button>
+                    aria-pressed="false" title="标记为重点">! 重要</button>
           </div>
           <div id="kal-cell-color-bar" class="kal-cell-color-bar" role="group" aria-label="当日单元格背景染色"></div>
         </div>
@@ -192,7 +192,7 @@
       <div id="kal-pending-box" class="kal-pending-box" hidden aria-live="assertive"></div>
       <ul class="kal-agenda-list" id="kal-agenda-list"></ul>
       <button id="kal-agenda-inline-trigger" class="kal-agenda-inline-trigger" type="button"
-              title="点击直接在右侧列表中添加安排（或在左侧日历双击任意天直接编辑）">+ 直接添加安排（双击左侧日历格也可直接编辑）</button>
+              title="添加安排">+ 添加安排</button>
       <section class="kal-productivity" id="kal-productivity" aria-label="本地工具">
         <details class="kal-tools-section">
           <summary>重要日期</summary>
@@ -200,7 +200,7 @@
           <details class="kal-countdown-editor">
             <summary>添加倒计时</summary>
             <form id="kal-countdown-form" autocomplete="off">
-              <input id="kal-countdown-title" type="text" maxlength="80" required placeholder="标题，如考试或纪念日" aria-label="倒计时标题" />
+              <input id="kal-countdown-title" type="text" maxlength="80" required placeholder="名称" aria-label="倒计时标题" />
               <input id="kal-countdown-date" type="date" required min="0001-01-01" max="9999-12-31" aria-label="倒计时日期" />
               <button class="kal-btn kal-btn-ghost" type="submit">保存</button>
             </form>
@@ -208,12 +208,12 @@
           <div id="kal-productivity-status" class="kal-tools-status" role="status"></div>
         </details>
         <details class="kal-tools-section" id="kal-notes">
-          <summary>全部便签 <span class="kal-note-badge">随手记</span></summary>
+          <summary>便签本</summary>
           <details class="kal-countdown-editor" id="kal-note-editor">
             <summary>+ 新建便签</summary>
             <form id="kal-note-form" autocomplete="off">
-              <input id="kal-note-title-input" type="text" maxlength="120" required placeholder="便签标题…" aria-label="便签标题" />
-              <textarea id="kal-note-content-input" class="kal-holiday-textarea" rows="3" placeholder="输入便签正文内容…" aria-label="便签正文"></textarea>
+              <input id="kal-note-title-input" type="text" maxlength="120" required placeholder="标题" aria-label="便签标题" />
+              <textarea id="kal-note-content-input" class="kal-holiday-textarea" rows="3" placeholder="正文内容" aria-label="便签正文"></textarea>
               <button class="kal-btn kal-btn-ghost" type="submit">保存便签</button>
             </form>
           </details>
@@ -223,11 +223,11 @@
           <button id="kal-notes-more" class="kal-btn kal-btn-ghost" type="button" hidden>加载更多</button>
         </details>
         <details class="kal-tools-section" id="kal-holiday-section">
-          <summary>节假日配置 <span class="kal-note-badge">holiday-cn 兼容</span></summary>
+          <summary>节假日配置</summary>
           <div class="kal-holiday-editor">
             <textarea id="kal-holiday-json" class="kal-holiday-textarea" spellcheck="false"
                       aria-label="法定节假日 JSON 配置"
-                      placeholder='支持粘贴 GitHub NateScarlet/holiday-cn 年度 JSON 或 {"2028-01-01":"rest:元旦"}'></textarea>
+                      placeholder='粘贴节假日 JSON 配置'></textarea>
             <div class="kal-holiday-actions">
               <button id="kal-holiday-save" class="kal-btn kal-btn-ghost kal-holiday-btn" type="button">应用并保存</button>
               <button id="kal-holiday-sample" class="kal-btn kal-btn-ghost kal-holiday-btn" type="button">填入示例</button>

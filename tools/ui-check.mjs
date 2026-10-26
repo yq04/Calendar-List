@@ -380,6 +380,48 @@ function buildPreloadScript(presets) {
       case "desktop_set_hotkey":
         state.desktopEnabled = Boolean(args.enabled);
         return { enabled: state.desktopEnabled, registered: state.desktopEnabled && !state.desktopConflict, shortcut: "Win+Alt+C", error: state.desktopEnabled && state.desktopConflict ? "快捷键已被其他应用占用" : null };
+      case "autostart_status":
+        return { enabled: Boolean(state.autostartEnabled) };
+      case "autostart_set":
+        state.autostartEnabled = Boolean(args?.enabled);
+        return { enabled: state.autostartEnabled };
+      case "desktop_dock_status":
+        return state.dockState || {
+          docked: false,
+          position: "left-desktop",
+          monitor: "",
+          widthRatio: 0.64,
+          heightRatio: 0.94,
+          monitors: [{
+            monitor: "Kal Test Monitor",
+            pxW: 1920,
+            pxH: 1080,
+            diagonalIn: 24.0,
+            dpiScale: 1,
+            ppiKnown: true,
+            work: [0, 0, 1920, 1040],
+          }],
+        };
+      case "desktop_apply_dock": {
+        const opts = args?.opts || args || {};
+        state.dockState = {
+          docked: Boolean(opts.docked),
+          position: opts.position || "left-desktop",
+          monitor: opts.monitor || "",
+          widthRatio: opts.widthRatio ?? 0.64,
+          heightRatio: opts.heightRatio ?? 0.94,
+          monitors: [{
+            monitor: "Kal Test Monitor",
+            pxW: 1920,
+            pxH: 1080,
+            diagonalIn: 24.0,
+            dpiScale: 1,
+            ppiKnown: true,
+            work: [0, 0, 1920, 1040],
+          }],
+        };
+        return state.dockState;
+      }
       case "notes_list":
         if (!state.customNotes) {
           state.customNotes = [{ id: "nt-1", title: "跨日期便签", preview: "测试正文", content: "测试正文" + String.fromCharCode(10) + "<img src=x onerror=alert(1)>", created: "2000-01-01", modified: "" }];
@@ -2136,6 +2178,184 @@ async function run() {
       record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.0版本标识与检查更新", ok, JSON.stringify(p8Res));
     } catch (err) {
       record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.0版本标识与检查更新", false, err.message);
+    }
+
+    // =========================================================================
+    // P9：纯净无多余占位提示 + 桌面左侧固定模式 + 居中模态设置弹窗 + 开机自启动
+    // =========================================================================
+    try {
+      const p9Res = await cdp.evaluate(`(async () => {
+        window.__KAL_TEST__.clearCalls();
+
+        // 1. Verify cell inline input has NO noisy placeholder text (Image 1 fix)
+        const cellOct20 = document.querySelector('.kal-cell[data-key="2026-10-20"]');
+        cellOct20?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        const cellInput = cellOct20?.querySelector(".kal-cell-inline-input");
+        const cellPlaceholder = cellInput ? cellInput.placeholder : "MISSING";
+        if (cellInput) {
+          cellInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        }
+
+        // 2. Verify agenda input & inline trigger have concise text (Image 2 fix)
+        const agendaPlaceholder = document.getElementById("kal-agenda-input")?.placeholder || "";
+        const inlineTriggerText = document.getElementById("kal-agenda-inline-trigger")?.textContent?.trim() || "";
+
+        // 3. Verify Centered Modal Settings Dialog & Autostart + Desktop Docking (Image 2 & Image 3 & Req 4)
+        document.getElementById("kal-settings")?.click();
+        const panelEl = document.querySelector(".kal-panel");
+        const rect = panelEl?.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const isCenteredModal = Boolean(
+          rect &&
+          rect.width >= 500 &&
+          Math.abs((rect.left + rect.right) / 2 - vw / 2) < 24 &&
+          Math.abs((rect.top + rect.bottom) / 2 - vh / 2) < 24
+        );
+
+        // Advanced drawer collapsed by default so UI is clean
+        const advDrawer = document.querySelector(".kal-advanced-drawer");
+        const advCollapsedByDefault = Boolean(advDrawer && !advDrawer.open);
+
+        // Toggle Autostart in Settings
+        const autostartToggle = document.getElementById("kal-autostart-toggle");
+        autostartToggle?.click();
+        await new Promise(r => setTimeout(r, 60));
+        const autostartCalls = window.__KAL_TEST__.getCalls("autostart_set");
+        const autostartOn = autostartCalls.some(c => c.args?.enabled === true) && Boolean(autostartToggle?.checked);
+
+        // Click Desktop Dock position preset card ("left-desktop")
+        const leftDockCard = document.querySelector('.kal-dock-pos-card[data-dock-pos="left-desktop"]');
+        leftDockCard?.click();
+        await new Promise(r => setTimeout(r, 60));
+        const dockCalls = window.__KAL_TEST__.getCalls("desktop_apply_dock");
+        const dockedLeft = dockCalls.some(c => c.args?.opts?.docked === true && c.args?.opts?.position === "left-desktop") &&
+          document.body.classList.contains("kal-window-locked");
+
+        // Unlock back to default movable window
+        document.getElementById("kal-dock-toggle")?.click();
+        await new Promise(r => setTimeout(r, 60));
+        const unlockedDefault = !document.body.classList.contains("kal-window-locked");
+
+        document.querySelector('.kal-panel [data-act="close"]')?.click();
+        return {
+          cellPlaceholder,
+          agendaPlaceholder,
+          inlineTriggerText,
+          isCenteredModal,
+          advCollapsedByDefault,
+          autostartOn,
+          dockedLeft,
+          unlockedDefault,
+        };
+      })()`);
+      const ok =
+        p9Res.cellPlaceholder === "" &&
+        p9Res.agendaPlaceholder === "添加安排" &&
+        p9Res.inlineTriggerText === "+ 添加安排" &&
+        p9Res.isCenteredModal === true &&
+        p9Res.advCollapsedByDefault === true &&
+        p9Res.autostartOn === true &&
+        p9Res.dockedLeft === true &&
+        p9Res.unlockedDefault === true;
+      record("P9-clean-ui-dock-modal-autostart", "无冗余提示/桌面左侧固定与多屏适配/居中设置弹窗与预设模板/开机自启动", ok, JSON.stringify(p9Res));
+    } catch (err) {
+      record("P9-clean-ui-dock-modal-autostart", "无冗余提示/桌面左侧固定与多屏适配/居中设置弹窗与预设模板/开机自启动", false, err.message);
+    }
+
+    // =========================================================================
+    // [P10-ux-and-visual-polish] 双栏设置弹窗、预设高亮同步、防削字排版、闲置半透减淡与键盘选日导航
+    // =========================================================================
+    try {
+      const p10Res = await cdp.evaluate(`(async () => {
+        document.getElementById("kal-settings")?.click();
+        await new Promise(r => setTimeout(r, 80));
+
+        // 1. Two-column workbench layout + SVG icons in left nav rail
+        const mainBox = document.querySelector(".kal-panel-main");
+        const tabsRail = document.querySelector(".kal-panel-tabs");
+        const hasTwoColumn = Boolean(mainBox && tabsRail && getComputedStyle(mainBox).display === "flex");
+        const tabSvgCount = document.querySelectorAll(".kal-panel-tab svg").length;
+
+        // 2. Active state (.is-on) synchronization on style recipe, content preset, and font preset
+        const dirtyBadge = document.getElementById("kal-panel-dirty");
+        const dirtyHiddenOnOpen = Boolean(dirtyBadge && dirtyBadge.hidden === true);
+
+        const paperRecipeBtn = document.querySelector('#kal-recipe-grid [data-recipe-id="paper"]');
+        paperRecipeBtn?.click();
+        const recipeIsOn = Boolean(paperRecipeBtn?.classList.contains("is-on"));
+        const dirtyShownAfterPreview = Boolean(dirtyBadge && dirtyBadge.hidden === false);
+
+        const detailPresetBtn = document.querySelector('#kal-content-preset-grid [data-content-preset="large-comfort"]');
+        detailPresetBtn?.click();
+        const contentPresetIsOn = Boolean(detailPresetBtn?.classList.contains("is-on"));
+
+        const fontPresetBtn = document.querySelector('[data-font-preset="literary-kai"]');
+        fontPresetBtn?.click();
+        const fontPresetIsOn = Boolean(fontPresetBtn?.classList.contains("is-on"));
+
+        // Reset restores clean state and hides dirty badge
+        document.querySelector('.kal-panel [data-act="reset"]')?.click();
+        const dirtyHiddenAfterReset = Boolean(dirtyBadge && dirtyBadge.hidden === true);
+
+        // 3. Dock Idle Fade toggle
+        const fadeToggle = document.getElementById("kal-dock-fade-toggle");
+        fadeToggle?.click();
+        await new Promise(r => setTimeout(r, 40));
+        const idleFadeOn = document.body.classList.contains("kal-dock-idle-fade");
+        fadeToggle?.click();
+        await new Promise(r => setTimeout(r, 40));
+        const idleFadeOff = !document.body.classList.contains("kal-dock-idle-fade");
+
+        document.querySelector('.kal-panel [data-act="close"]')?.click();
+
+        // 4. Today pill badge vs Selected cell
+        const todayNum = document.querySelector(".kal-cell.is-today .kal-daynum");
+        const todayRadius = todayNum ? getComputedStyle(todayNum).borderRadius : "";
+
+        // 5. Keyboard ArrowDown (+7 days) & ArrowUp (-7 days) navigation
+        document.querySelector('.kal-cell[data-key="2026-10-10"]')?.click();
+        const beforeKey = document.querySelector(".kal-cell.is-selected")?.dataset?.key || "";
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+        const afterDownKey = document.querySelector(".kal-cell.is-selected")?.dataset?.key || "";
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+        const afterUpKey = document.querySelector(".kal-cell.is-selected")?.dataset?.key || "";
+
+        return {
+          hasTwoColumn,
+          tabSvgCount,
+          dirtyHiddenOnOpen,
+          recipeIsOn,
+          dirtyShownAfterPreview,
+          contentPresetIsOn,
+          fontPresetIsOn,
+          dirtyHiddenAfterReset,
+          idleFadeOn,
+          idleFadeOff,
+          hasTodayPill: todayRadius.includes("999"),
+          beforeKey,
+          afterDownKey,
+          afterUpKey,
+        };
+      })()`);
+      const ok =
+        p10Res.hasTwoColumn === true &&
+        p10Res.tabSvgCount === 7 &&
+        p10Res.dirtyHiddenOnOpen === true &&
+        p10Res.recipeIsOn === true &&
+        p10Res.dirtyShownAfterPreview === true &&
+        p10Res.contentPresetIsOn === true &&
+        p10Res.fontPresetIsOn === true &&
+        p10Res.dirtyHiddenAfterReset === true &&
+        p10Res.idleFadeOn === true &&
+        p10Res.idleFadeOff === true &&
+        p10Res.hasTodayPill === true &&
+        p10Res.beforeKey === "2026-10-10" &&
+        p10Res.afterDownKey === "2026-10-17" &&
+        p10Res.afterUpKey === "2026-10-10";
+      record("P10-ux-and-visual-polish", "双栏设置弹窗/预设高亮同步/待保存提示/闲置半透减淡/今日胶囊与键盘周向选日", ok, JSON.stringify(p10Res));
+    } catch (err) {
+      record("P10-ux-and-visual-polish", "双栏设置弹窗/预设高亮同步/待保存提示/闲置半透减淡/今日胶囊与键盘周向选日", false, err.message);
     }
 
     // 全程调用日志脱敏二次核对

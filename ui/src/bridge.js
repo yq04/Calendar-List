@@ -43,6 +43,10 @@ export async function createBridge(env = {}) {
       noteDelete: id => invoke("note_delete", { id }),
       desktopStatus: () => invoke("desktop_status"),
       desktopSetHotkey: enabled => invoke("desktop_set_hotkey", { enabled: Boolean(enabled) }),
+      autostartStatus: () => invoke("autostart_status"),
+      autostartSet: enabled => invoke("autostart_set", { enabled: Boolean(enabled) }),
+      desktopDockStatus: () => invoke("desktop_dock_status"),
+      desktopApplyDock: opts => invoke("desktop_apply_dock", { opts }),
       writeStatus: () => invoke("calendar_write_status"),
       itemCreate: (date, title, time = "") => invoke("item_create", { date, title, time }),
       itemUpdate: (id, date, title, expected = null) =>
@@ -154,10 +158,38 @@ export async function createBridge(env = {}) {
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f2027"/><stop offset="50%" stop-color="#203a43"/><stop offset="100%" stop-color="#2c5364"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><circle cx="920" cy="220" r="180" fill="#60a5fa" opacity="0.22"/><path d="M0 620 Q320 480 640 590 T1200 540 L1200 800 L0 800 Z" fill="#0b151c" opacity="0.55"/></svg>`
     ),
   });
-  const memoryThemes = new Map();
+  const memoryThemes = new Map([
+    ["default", structuredClone(DEFAULT_THEME)],
+    ["builtin-starport-paper", { ...structuredClone(DEFAULT_THEME), id: "builtin-starport-paper", name: "星港素纸", mode: "light", builtin: true }],
+    ["builtin-deep-ocean", {
+      ...structuredClone(DEFAULT_THEME),
+      id: "builtin-deep-ocean", name: "深海夜航", mode: "dark", builtin: true,
+      color: { ...DEFAULT_THEME.color, bg: "#071428", surface: "#0E223D", fg: "#E2EBF8", fgMuted: "#8DA4C4", fgDim: "#647E9E", accent: "#38BDF8", danger: "#F43F5E", dangerFg: "#FFFFFF", focus: "#38BDF8", done: "#647E9E", selectedBg: "#153259", selectedFg: "#E2EBF8", todayBg: "#153259", todayRing: "#38BDF8", line: "#1E3A5F" },
+    }],
+    ["builtin-mocha", {
+      ...structuredClone(DEFAULT_THEME),
+      id: "builtin-mocha", name: "摩卡紫蓝", mode: "dark", builtin: true,
+      color: { ...DEFAULT_THEME.color, bg: "#1E1E2E", surface: "#28283D", fg: "#CDD6F4", fgMuted: "#A6ADC8", fgDim: "#7F849C", accent: "#89B4FA", danger: "#F38BA8", dangerFg: "#1E1E2E", focus: "#89B4FA", done: "#7F849C", selectedBg: "#313244", selectedFg: "#CDD6F4", todayBg: "#313244", todayRing: "#89B4FA", line: "#45475A" },
+    }],
+    ["builtin-nord", {
+      ...structuredClone(DEFAULT_THEME),
+      id: "builtin-nord", name: "极地霜夜", mode: "dark", builtin: true,
+      color: { ...DEFAULT_THEME.color, bg: "#2E3440", surface: "#3B4252", fg: "#ECEFF4", fgMuted: "#D8DEE9", fgDim: "#9099AB", accent: "#88C0D0", danger: "#BF616A", dangerFg: "#ECEFF4", focus: "#88C0D0", done: "#9099AB", selectedBg: "#434C5E", selectedFg: "#ECEFF4", todayBg: "#434C5E", todayRing: "#88C0D0", line: "#4C566A" },
+    }],
+    ["builtin-rose-dawn", {
+      ...structuredClone(DEFAULT_THEME),
+      id: "builtin-rose-dawn", name: "松影晨纸", mode: "light", builtin: true,
+      color: { ...DEFAULT_THEME.color, bg: "#FAF4ED", surface: "#FFFAF3", fg: "#575279", fgMuted: "#797593", fgDim: "#9893A5", accent: "#286983", danger: "#B4637A", dangerFg: "#FAF4ED", focus: "#286983", done: "#9893A5", selectedBg: "#F2E9E1", selectedFg: "#575279", todayBg: "#F2E9E1", todayRing: "#286983", line: "#DFDAD9" },
+    }],
+  ]);
   let activeTheme = structuredClone(DEFAULT_THEME);
   mock.themeActive = async () => structuredClone(activeTheme);
-  mock.themeList = async () => [...memoryThemes.values()].map(t => ({ id: t.id, name: t.name, mode: t.mode, builtin: false }));
+  mock.themeList = async () => [...memoryThemes.values()].map(t => ({
+    id: t.id,
+    name: t.name,
+    mode: t.mode,
+    builtin: t.id === "default" || t.id.startsWith("builtin-"),
+  }));
   mock.themeLoad = async id => {
     if (!memoryThemes.has(id)) throw new Error("演示主题不存在");
     return structuredClone(memoryThemes.get(id));
@@ -245,6 +277,33 @@ export async function createBridge(env = {}) {
   };
   mock.desktopStatus = async () => ({ enabled: false, registered: false, shortcut: "Win+Alt+C", error: null });
   mock.desktopSetHotkey = async () => { throw new Error("请在 Kal 桌面应用中使用全局快捷键"); };
+  let mockAutostart = false;
+  mock.autostartStatus = async () => ({ enabled: mockAutostart, exePath: "D:\\1_app\\CalendarList\\kal.exe", error: null });
+  mock.autostartSet = async enabled => {
+    mockAutostart = Boolean(enabled);
+    return { enabled: mockAutostart, exePath: "D:\\1_app\\CalendarList\\kal.exe", error: null };
+  };
+  let mockDock = {
+    docked: false,
+    position: "left-desktop",
+    monitor: "Kal Test Monitor",
+    widthRatio: 0.64,
+    heightRatio: 0.94,
+    monitors: [{ monitor: "Kal Test Monitor", pxW: 1920, pxH: 1080, diagonalIn: 24.0, dpiScale: 1, work: [0, 0, 1920, 1040], rect: [0, 0, 1920, 1080] }],
+    appliedRect: [16, 28, 1228, 984],
+  };
+  mock.desktopDockStatus = async () => structuredClone(mockDock);
+  mock.desktopApplyDock = async (opts = {}) => {
+    mockDock = {
+      ...mockDock,
+      docked: Boolean(opts.docked),
+      position: opts.position || mockDock.position,
+      monitor: opts.monitor || mockDock.monitor,
+      widthRatio: Number(opts.widthRatio) || mockDock.widthRatio,
+      heightRatio: Number(opts.heightRatio) || mockDock.heightRatio,
+    };
+    return structuredClone(mockDock);
+  };
   mock.windowSetClickThrough = async enabled => Boolean(enabled);
   mock.pickImage = async () => null;
   mock.pickFontFile = async () => null;

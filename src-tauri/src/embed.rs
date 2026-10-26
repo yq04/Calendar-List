@@ -291,15 +291,15 @@ pub fn hit_test(x: i32, y: i32) -> (Hwnd, String) {
     }
 }
 
-/// 把窗口的 owner 设为 Progman（桌面）。
+/// 把窗口的 owner 设为桌面图标宿主（优先 `defview_host`，以抵御 Win+D 显示桌面遮挡；回退 `Progman`）。
 pub fn set_desktop_owner(hwnd: Hwnd) -> Result<Hwnd, String> {
     if hwnd == 0 {
         return Err("hwnd 无效".into());
     }
     let scan = scan_desktop();
-    let owner = if scan.progman != 0 { scan.progman } else { scan.defview_host };
+    let owner = if scan.defview_host != 0 { scan.defview_host } else { scan.progman };
     if owner == 0 {
-        return Err("未找到桌面窗口（Progman）".into());
+        return Err("未找到桌面窗口（Progman / SHELLDLL_DefView）".into());
     }
     unsafe {
         let prev = GetWindowLongPtrW(hwnd, GWLP_HWNDPARENT);
@@ -314,6 +314,28 @@ pub fn set_desktop_owner(hwnd: Hwnd) -> Result<Hwnd, String> {
         SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
     Ok(owner)
+}
+
+/// 解除桌面固定时清除桌面 Owner 并恢复普通窗口样式与 Z 序。
+pub fn clear_desktop_owner(hwnd: Hwnd) {
+    if hwnd == 0 {
+        return;
+    }
+    unsafe {
+        SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, 0);
+        let ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as isize;
+        let next = (ex & !WS_EX_TOOLWINDOW) as i32;
+        SetWindowLongW(hwnd, GWL_EXSTYLE, next);
+        SetWindowPos(
+            hwnd,
+            -2, // HWND_NOTOPMOST
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+    }
 }
 
 /// 鼠标穿透开关（WS_EX_TRANSPARENT | WS_EX_LAYERED）
