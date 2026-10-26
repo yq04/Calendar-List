@@ -293,10 +293,10 @@ export function createPanel({ mount, getTheme, onPreview, onCommit, onRegen, onR
     <div class="kal-sec-title">版本与检查更新</div>
     <div class="kal-card-group kal-update-card">
       <div class="kal-update-hero">
-        <img class="kal-update-logo" src="./favicon.png" alt="Starport Calendar" width="28" height="28" />
+        <img class="kal-update-logo" src="./favicon.png" alt="Calendar List" width="28" height="28" />
         <div class="kal-update-meta">
-          <div class="kal-update-name">日历清单 · Starport Calendar <span class="kal-update-ver-pill" id="kal-update-ver-pill">${APP_STAGE_LABEL}</span></div>
-          <div class="kal-update-sub" id="kal-update-status">当前阶段版本：${APP_STAGE_LABEL} (Build 2026.10 · 星港素纸版)</div>
+          <div class="kal-update-name">日历清单 · Calendar List <span class="kal-update-ver-pill" id="kal-update-ver-pill">${APP_STAGE_LABEL}</span></div>
+          <div class="kal-update-sub" id="kal-update-status">当前阶段版本：${APP_STAGE_LABEL} (Build 2026.10)</div>
         </div>
         <div class="kal-update-actions">
           <button type="button" class="kal-btn kal-update-btn" id="kal-check-update-btn">检查更新</button>

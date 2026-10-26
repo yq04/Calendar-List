@@ -646,7 +646,7 @@ fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&toggle, &settings, &regen, &sep, &click_through_off, &show_all, &quit])?;
 
     let mut b = TrayIconBuilder::with_id("kal-tray")
-        .tooltip("日历清单 · Starport Calendar")
+        .tooltip("日历清单 · Calendar List")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, ev| match ev.id().as_ref() {

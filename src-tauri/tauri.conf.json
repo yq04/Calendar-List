@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "StarportCalendar",
+  "productName": "CalendarList",
   "version": "0.1.0",
   "identifier": "com.kal.desktop.calendar",
   "build": {
@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "日历清单 · Starport Calendar",
+        "title": "日历清单 · Calendar List",
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,TranslateUI --renderer-process-limit=2 --disable-background-networking --disable-sync --disable-extensions",
         "width": 1020,
         "height": 760,
