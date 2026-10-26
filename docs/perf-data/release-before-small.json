@@ -1,0 +1,171 @@
+{
+  "Timestamp": "2026-10-15T09:15:02.2512073Z",
+  "Phase": "before",
+  "Scale": "small",
+  "Binary": "release",
+  "DbPath": "D:/1_Research/AI_Workspace/Task_Plan/Kal/_fixture/perf-20261015/calendar-small.db",
+  "ExePath": "D:/1_Research/AI_Workspace/Task_Plan/Kal/_backup/ux-themes-20261015-014117/src-tauri/target/release/kal.exe",
+  "IsoAppDir": "D:/1_Research/AI_Workspace/Task_Plan/Kal/_fixture/perf-runs/appdata-release-before-small-347ce550363341ba92bfd0824bda78a1",
+  "FirstWindowCreationProxyMs": 140,
+  "WindowProxyLimitations": "该指标仅代表 Win32 窗口句柄已被系统创建，不能等同于 WebView2 页面可操作或冷启动完毕；Release 构建不带调试口，无页面内部时间戳。",
+  "InitialMemory": {
+    "ProcessCount": 7,
+    "MainProcess": {
+      "Id": 2600,
+      "Name": "kal",
+      "IsMain": true,
+      "PrivateBytesMB": 9.09,
+      "WorkingSetMB": 28.26,
+      "PrivateBytes": 9531392,
+      "WorkingSet": 29634560
+    },
+    "TreeProcesses": [
+      {
+        "Id": 2600,
+        "Name": "kal",
+        "IsMain": true,
+        "PrivateBytesMB": 9.09,
+        "WorkingSetMB": 28.26,
+        "PrivateBytes": 9531392,
+        "WorkingSet": 29634560
+      },
+      {
+        "Id": 74872,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 65.05,
+        "WorkingSetMB": 146.46,
+        "PrivateBytes": 68214784,
+        "WorkingSet": 153575424
+      },
+      {
+        "Id": 31876,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 2.38,
+        "WorkingSetMB": 8.1,
+        "PrivateBytes": 2494464,
+        "WorkingSet": 8491008
+      },
+      {
+        "Id": 15616,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 115.36,
+        "WorkingSetMB": 81.22,
+        "PrivateBytes": 120967168,
+        "WorkingSet": 85168128
+      },
+      {
+        "Id": 15256,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 11.02,
+        "WorkingSetMB": 31.19,
+        "PrivateBytes": 11558912,
+        "WorkingSet": 32706560
+      },
+      {
+        "Id": 69248,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 7.18,
+        "WorkingSetMB": 17.98,
+        "PrivateBytes": 7528448,
+        "WorkingSet": 18853888
+      },
+      {
+        "Id": 67804,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 35.88,
+        "WorkingSetMB": 77.43,
+        "PrivateBytes": 37617664,
+        "WorkingSet": 81186816
+      }
+    ],
+    "TotalPrivateBytesMB": 245.96,
+    "TotalWorkingSetMB": 390.64,
+    "Note": "Private Bytes 可安全跨进程累加；Working Set (RSS) 总和包含共享页重复计算，不可作为真实私有物理开销"
+  },
+  "SteadyMemory": {
+    "ProcessCount": 7,
+    "MainProcess": {
+      "Id": 2600,
+      "Name": "kal",
+      "IsMain": true,
+      "PrivateBytesMB": 9.09,
+      "WorkingSetMB": 28.26,
+      "PrivateBytes": 9531392,
+      "WorkingSet": 29634560
+    },
+    "TreeProcesses": [
+      {
+        "Id": 2600,
+        "Name": "kal",
+        "IsMain": true,
+        "PrivateBytesMB": 9.09,
+        "WorkingSetMB": 28.26,
+        "PrivateBytes": 9531392,
+        "WorkingSet": 29634560
+      },
+      {
+        "Id": 74872,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 64.92,
+        "WorkingSetMB": 146.47,
+        "PrivateBytes": 68071424,
+        "WorkingSet": 153583616
+      },
+      {
+        "Id": 31876,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 2.38,
+        "WorkingSetMB": 8.1,
+        "PrivateBytes": 2494464,
+        "WorkingSet": 8491008
+      },
+      {
+        "Id": 15616,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 105.08,
+        "WorkingSetMB": 81.22,
+        "PrivateBytes": 110186496,
+        "WorkingSet": 85164032
+      },
+      {
+        "Id": 15256,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 11.02,
+        "WorkingSetMB": 31.21,
+        "PrivateBytes": 11558912,
+        "WorkingSet": 32727040
+      },
+      {
+        "Id": 69248,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 7.18,
+        "WorkingSetMB": 17.98,
+        "PrivateBytes": 7528448,
+        "WorkingSet": 18853888
+      },
+      {
+        "Id": 67804,
+        "Name": "msedgewebview2",
+        "IsMain": false,
+        "PrivateBytesMB": 35.88,
+        "WorkingSetMB": 77.46,
+        "PrivateBytes": 37621760,
+        "WorkingSet": 81223680
+      }
+    ],
+    "TotalPrivateBytesMB": 235.55,
+    "TotalWorkingSetMB": 390.7,
+    "Note": "Private Bytes 可安全跨进程累加；Working Set (RSS) 总和包含共享页重复计算，不可作为真实私有物理开销"
+  }
+}

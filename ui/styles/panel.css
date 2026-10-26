@@ -1,0 +1,610 @@
+/* ============================================================
+   Kal 个性化设置抽屉
+   刻意与主面板共用同一套 token —— 调参时看到的就是最终效果
+   ============================================================ */
+
+.kal-panel {
+  position: absolute;
+  inset: var(--kal-pad) var(--kal-pad) var(--kal-pad) auto;
+  width: calc(348 * var(--kal-u));
+  max-width: calc(100% - 2 * var(--kal-pad));
+  display: none;
+  flex-direction: column;
+  border-radius: var(--kal-radius-nested);
+  /* 即使主面板调成 0% 全透明，抽屉也保持 98% 高不透明度以确保控件清晰可读且无 GPU 模糊负担 */
+  background: rgb(var(--kal-bg) / 0.98);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / 0.85);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+  z-index: 25;
+  overflow: hidden;
+}
+body.kal-panel-open .kal-panel { display: flex; }
+
+.kal-panel-head {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--kal-u));
+  padding: calc(10 * var(--kal-u)) calc(12 * var(--kal-u));
+  border-bottom: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+  flex: 0 0 auto;
+}
+.kal-panel-title { font-size: calc(13 * var(--kal-u)); font-weight: 600; flex: 1 1 auto; }
+
+.kal-panel-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(4 * var(--kal-u));
+  padding: calc(7 * var(--kal-u)) calc(12 * var(--kal-u));
+  border-bottom: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+  flex: 0 0 auto;
+}
+.kal-panel-tab {
+  appearance: none;
+  font-family: inherit;
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+  background: rgb(var(--kal-surface) / 0.38);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+  border-radius: var(--kal-radius-pill);
+  padding: calc(3 * var(--kal-u)) calc(8 * var(--kal-u));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 180ms var(--kal-ease-out), color 180ms var(--kal-ease-out), border-color 180ms var(--kal-ease-out);
+}
+.kal-panel-tab:hover {
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface-hover) / 0.14);
+}
+.kal-panel-tab.is-on {
+  color: rgb(var(--kal-accent-fg));
+  background: rgb(var(--kal-accent));
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.kal-panel-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: calc(10 * var(--kal-u)) calc(12 * var(--kal-u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(12 * var(--kal-u));
+  min-height: 0;
+}
+
+.kal-sec {
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--kal-u));
+}
+.kal-sec[hidden] { display: none !important; }
+.kal-sec-title {
+  font-size: calc(10.5 * var(--kal-u));
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  color: rgb(var(--kal-fg-dim));
+  text-transform: uppercase;
+  padding-bottom: calc(3 * var(--kal-u));
+  border-bottom: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+}
+
+/* ---- 一键风格配方卡片 ---- */
+.kal-recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(5 * var(--kal-u));
+}
+.kal-recipe-card {
+  appearance: none;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(2 * var(--kal-u));
+  padding: calc(6 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface) / 0.45);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+  color: rgb(var(--kal-fg));
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.kal-recipe-card:hover {
+  background: rgb(var(--kal-surface-hover) / 0.14);
+  border-color: rgb(var(--kal-accent) / 0.55);
+}
+.kal-recipe-card:active { transform: scale(0.98); }
+.kal-recipe-card strong {
+  font-size: calc(11 * var(--kal-u));
+  font-weight: 600;
+}
+.kal-recipe-card small {
+  font-size: calc(9.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  line-height: 1.3;
+}
+
+/* ---- 艺术壁纸与背景画布缩略卡 ---- */
+.kal-backdrop-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(5 * var(--kal-u));
+}
+.kal-backdrop-card {
+  appearance: none;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--kal-u));
+  padding: calc(4 * var(--kal-u));
+  border-radius: calc(7 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.42);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+  color: rgb(var(--kal-fg-muted));
+  font-size: calc(10 * var(--kal-u));
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.kal-backdrop-card:hover {
+  color: rgb(var(--kal-fg));
+  border-color: rgb(var(--kal-accent) / 0.55);
+}
+.kal-backdrop-card.is-on {
+  color: rgb(var(--kal-fg));
+  border-color: rgb(var(--kal-accent));
+  box-shadow: 0 0 0 1px rgb(var(--kal-accent) / 0.6);
+}
+.kal-backdrop-thumb {
+  width: 100%;
+  height: calc(24 * var(--kal-u));
+  border-radius: calc(4 * var(--kal-u));
+  display: block;
+}
+.kal-backdrop-thumb[data-art="aurora"] {
+  background: radial-gradient(circle at 20% 25%, #38bdf8, transparent 60%), radial-gradient(circle at 80% 30%, #a855f7, transparent 65%), linear-gradient(135deg, #0b1325, #142238);
+}
+.kal-backdrop-thumb[data-art="ink-paper"] {
+  background: radial-gradient(circle at 75% 25%, #64748b, transparent 60%), linear-gradient(160deg, #2b2e34, #181a1f);
+}
+.kal-backdrop-thumb[data-art="sunset-glow"] {
+  background: radial-gradient(circle at 25% 25%, #fb923c, transparent 60%), radial-gradient(circle at 80% 40%, #f43f5e, transparent 65%), linear-gradient(155deg, #271324, #151426);
+}
+.kal-backdrop-thumb[data-art="cyber-grid"] {
+  background: linear-gradient(rgba(56,189,248,0.28) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.28) 1px, transparent 1px), linear-gradient(180deg, #090d1a, #131c36);
+  background-size: 8px 8px, 8px 8px, 100% 100%;
+}
+.kal-backdrop-thumb[data-art="forest-mist"] {
+  background: radial-gradient(circle at 25% 25%, #34d399, transparent 62%), linear-gradient(150deg, #0d1f1c, #132a25);
+}
+.kal-backdrop-thumb[data-art="warm-grain"] {
+  background: radial-gradient(circle at 25% 25%, #d97706, transparent 62%), linear-gradient(145deg, #281e18, #171210);
+}
+
+.kal-row {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--kal-u));
+  font-size: calc(11.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+  min-height: calc(22 * var(--kal-u));
+}
+.kal-row > label { flex: 0 0 calc(84 * var(--kal-u)); }
+.kal-row > .kal-row-ctl { flex: 1 1 auto; display: flex; align-items: center; gap: calc(6 * var(--kal-u)); min-width: 0; }
+.kal-row .kal-val {
+  flex: 0 0 auto;
+  min-width: calc(38 * var(--kal-u));
+  text-align: right;
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 控件 ---- */
+.kal-panel input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: calc(3.5 * var(--kal-u));
+  appearance: none;
+  background: rgb(var(--kal-fg) / 0.16);
+  border-radius: var(--kal-radius-pill);
+  outline: none;
+}
+.kal-panel input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: calc(11.5 * var(--kal-u));
+  height: calc(11.5 * var(--kal-u));
+  border-radius: 50%;
+  background: rgb(var(--kal-accent));
+  cursor: pointer;
+  border: none;
+}
+.kal-panel input[type="color"] {
+  width: calc(30 * var(--kal-u));
+  height: calc(20 * var(--kal-u));
+  padding: 0;
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: calc(5 * var(--kal-u));
+  background: transparent;
+  cursor: pointer;
+}
+.kal-panel select,
+.kal-panel input[type="text"],
+.kal-panel input[type="search"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: calc(24 * var(--kal-u));
+  font-family: inherit;
+  font-size: calc(11 * var(--kal-u));
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface) / 0.52);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: calc(6 * var(--kal-u));
+  padding: 0 calc(6 * var(--kal-u));
+}
+.kal-panel select option { background: #16181e; color: #e8eaf0; }
+.kal-panel input[type="checkbox"] {
+  width: calc(14 * var(--kal-u));
+  height: calc(14 * var(--kal-u));
+  accent-color: rgb(var(--kal-accent));
+  cursor: pointer;
+}
+
+.kal-chips { display: flex; flex-wrap: wrap; gap: calc(5 * var(--kal-u)); }
+.kal-chip {
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+  background: rgb(var(--kal-surface) / 0.45);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+  border-radius: var(--kal-radius-pill);
+  padding: calc(3 * var(--kal-u)) calc(9 * var(--kal-u));
+  cursor: pointer;
+  white-space: nowrap;
+}
+.kal-chip:hover { color: rgb(var(--kal-fg)); background: rgb(var(--kal-surface-hover) / 0.12); }
+.kal-chip.is-on { color: rgb(var(--kal-accent-fg)); background: rgb(var(--kal-accent)); border-color: transparent; }
+
+.kal-swatches { display: flex; gap: calc(4 * var(--kal-u)); flex-wrap: wrap; }
+.kal-swatch {
+  width: calc(18 * var(--kal-u));
+  height: calc(18 * var(--kal-u));
+  border-radius: calc(5 * var(--kal-u));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / 0.2);
+  cursor: pointer;
+}
+.kal-swatch:hover { outline: 2px solid rgb(var(--kal-accent)); outline-offset: 1px; }
+
+.kal-note {
+  font-size: calc(10 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  line-height: 1.5;
+}
+.kal-report {
+  font-size: calc(10 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  background: rgb(var(--kal-surface) / 0.35);
+  border-radius: calc(6 * var(--kal-u));
+  padding: calc(6 * var(--kal-u)) calc(8 * var(--kal-u));
+}
+
+.kal-font-actions {
+  display: flex;
+  gap: calc(6 * var(--kal-u));
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kal-panel button.kal-chip { font-family: inherit; min-height: 28px; }
+#kal-theme-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kal-theme-card { border-radius: var(--kal-radius-cell); display: flex; flex-direction: column; align-items: flex-start; gap: 5px; white-space: normal; text-align: left; }
+.kal-theme-card small { font-size: 10px; }
+.kal-theme-colors { display: flex; width: 100%; height: 10px; overflow: hidden; border-radius: 3px; }
+.kal-theme-colors i { flex: 1; }
+.kal-theme-sample {
+  font-family: var(--kal-font-family);
+  font-stretch: var(--kal-font-stretch);
+  font-size: var(--kal-fs-agenda);
+  line-height: 1.6;
+  padding: calc(8 * var(--kal-u)) calc(10 * var(--kal-u));
+  background: rgb(var(--kal-surface) / max(0.35, var(--kal-surface-alpha)));
+  color: rgb(var(--kal-fg));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: var(--kal-radius-cell);
+  text-shadow: var(--kal-text-shadow);
+}
+.kal-theme-sample span { font-family: var(--kal-font-family-num); font-variant-numeric: tabular-nums; }
+.kal-panel .is-error { color: rgb(var(--kal-danger)); }
+.kal-panel .kal-chip:focus-visible, .kal-panel input:focus-visible, .kal-panel select:focus-visible { outline: 2px solid rgb(var(--kal-focus)); outline-offset: 2px; }
+.kal-panel select option { background: rgb(var(--kal-surface)); color: rgb(var(--kal-fg)); }
+
+/* ---- CC Switch / Cockpit Tools / Antigravity Tools 卡片分组与现代拨杆开关 ---- */
+.kal-card-group {
+  display: flex;
+  flex-direction: column;
+  border-radius: calc(9 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.55);
+  border: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.72));
+  padding: calc(3 * var(--kal-u)) calc(9 * var(--kal-u));
+  gap: 0;
+}
+.kal-card-group > .kal-row {
+  padding: calc(5.5 * var(--kal-u)) 0;
+  border-bottom: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.42));
+}
+.kal-card-group > .kal-row:last-child {
+  border-bottom: none;
+}
+.kal-row-rich {
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(8 * var(--kal-u));
+}
+.kal-row-meta {
+  display: flex;
+  flex-direction: column;
+  gap: calc(1.5 * var(--kal-u));
+  flex: 0 0 calc(114 * var(--kal-u));
+  min-width: 0;
+}
+.kal-row-rich > .kal-row-ctl {
+  justify-content: flex-end;
+}
+.kal-row-meta > label {
+  font-size: calc(11.5 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-fg));
+}
+.kal-row-desc {
+  font-size: calc(9.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  line-height: 1.3;
+}
+.kal-row-ctl-end {
+  justify-content: flex-end;
+  flex: 0 0 auto !important;
+}
+
+/* 现代胶囊拨杆开关 (.kal-switch) */
+.kal-panel input[type="checkbox"].kal-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: calc(32 * var(--kal-u));
+  height: calc(18 * var(--kal-u));
+  border-radius: 999px;
+  background: rgb(var(--kal-fg-dim) / 0.28);
+  border: 1px solid rgb(var(--kal-line) / 0.55);
+  cursor: pointer;
+  transition: background-color 150ms var(--kal-ease-out), border-color 150ms var(--kal-ease-out);
+  flex: 0 0 auto;
+}
+.kal-panel input[type="checkbox"].kal-switch::after {
+  content: "";
+  position: absolute;
+  top: calc(2 * var(--kal-u));
+  left: calc(2 * var(--kal-u));
+  width: calc(12 * var(--kal-u));
+  height: calc(12 * var(--kal-u));
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  transition: transform 150ms var(--kal-ease-out);
+}
+.kal-panel input[type="checkbox"].kal-switch:checked {
+  background: rgb(var(--kal-accent));
+  border-color: rgb(var(--kal-accent));
+}
+.kal-panel input[type="checkbox"].kal-switch:checked::after {
+  transform: translateX(calc(14 * var(--kal-u)));
+}
+
+/* 强调色快选圆点矩阵 */
+.kal-accent-swatches {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--kal-u));
+  flex-wrap: nowrap;
+}
+.kal-accent-swatch {
+  appearance: none;
+  width: calc(16 * var(--kal-u));
+  height: calc(16 * var(--kal-u));
+  border-radius: 50%;
+  border: 2px solid rgb(var(--kal-surface));
+  box-shadow: 0 0 0 1px rgb(var(--kal-line) / 0.65);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 120ms var(--kal-ease-out), box-shadow 120ms var(--kal-ease-out);
+}
+.kal-accent-swatch:hover {
+  transform: scale(1.12);
+}
+.kal-accent-swatch.is-on {
+  box-shadow: 0 0 0 2px rgb(var(--kal-accent));
+  transform: scale(1.08);
+}
+
+/* 操作日志与历史面板 (CC Switch / Cockpit Tools 风格) */
+.kal-log-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(6 * var(--kal-u));
+  flex-wrap: wrap;
+}
+.kal-log-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4 * var(--kal-u));
+}
+.kal-log-act-btn {
+  height: calc(22 * var(--kal-u));
+  padding: 0 calc(6.5 * var(--kal-u));
+  font-size: calc(10 * var(--kal-u));
+}
+.kal-log-list {
+  list-style: none;
+  margin: 0;
+  padding: calc(5 * var(--kal-u)) calc(7 * var(--kal-u));
+  max-height: calc(185 * var(--kal-u));
+  overflow-y: auto;
+  border-radius: calc(8 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.62);
+  border: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.75));
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--kal-u));
+}
+.kal-log-item {
+  display: flex;
+  align-items: baseline;
+  gap: calc(5 * var(--kal-u));
+  font-size: calc(10.5 * var(--kal-u));
+  line-height: 1.4;
+  padding: calc(2.5 * var(--kal-u)) 0;
+  border-bottom: 1px dashed rgb(var(--kal-line) / 0.35);
+}
+.kal-log-item:last-child {
+  border-bottom: none;
+}
+.kal-log-time {
+  flex: 0 0 auto;
+  font-family: var(--kal-font-family-num);
+  font-size: calc(9.5 * var(--kal-u));
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--kal-fg-dim));
+}
+.kal-log-badge {
+  flex: 0 0 auto;
+  padding: calc(0.5 * var(--kal-u)) calc(4.5 * var(--kal-u));
+  border-radius: calc(3.5 * var(--kal-u));
+  font-size: calc(9 * var(--kal-u));
+  font-weight: 600;
+  background: rgb(var(--kal-accent) / 0.12);
+  color: rgb(var(--kal-accent));
+}
+.kal-log-badge[data-log-cat="theme"] {
+  background: rgb(var(--kal-fg-weekend) / 0.12);
+  color: rgb(var(--kal-fg-weekend));
+}
+.kal-log-badge[data-log-cat="system"] {
+  background: rgb(var(--kal-fg-muted) / 0.14);
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-log-badge[data-log-cat="error"] {
+  background: rgb(var(--kal-danger) / 0.14);
+  color: rgb(var(--kal-danger));
+}
+.kal-log-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgb(var(--kal-fg));
+  word-break: break-word;
+}
+.kal-log-empty {
+  text-align: center;
+  padding: calc(12 * var(--kal-u)) 0;
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+}
+
+/* 全局减少动画模式 (Reduced Motion) */
+body.kal-reduced-motion *,
+body.kal-reduced-motion *::before,
+body.kal-reduced-motion *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
+/* 版本标识与检查更新卡片 (v0.1.0 · CC Switch / Cockpit Tools 风格) */
+.kal-panel-version,
+.kal-update-ver-pill {
+  display: inline-flex;
+  align-items: center;
+  height: calc(17 * var(--kal-u));
+  padding: 0 calc(5.5 * var(--kal-u));
+  margin-left: calc(4 * var(--kal-u));
+  border-radius: var(--kal-radius-pill);
+  font-family: var(--kal-font-family-num);
+  font-size: calc(10 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-accent));
+  background: rgb(var(--kal-accent) / 0.12);
+  border: 1px solid rgb(var(--kal-accent) / 0.25);
+  vertical-align: middle;
+}
+.kal-update-hero {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--kal-u));
+  padding-bottom: calc(6 * var(--kal-u));
+  border-bottom: 1px dashed rgb(var(--kal-line) / 0.55);
+}
+.kal-update-logo {
+  width: calc(28 * var(--kal-u));
+  height: calc(28 * var(--kal-u));
+  border-radius: calc(6 * var(--kal-u));
+  flex: 0 0 auto;
+}
+.kal-update-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--kal-u));
+}
+.kal-update-name {
+  font-size: calc(11.5 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-fg));
+}
+.kal-update-sub {
+  font-size: calc(9.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  line-height: 1.3;
+}
+.kal-update-sub.is-ok {
+  color: rgb(var(--kal-accent));
+  font-weight: 500;
+}
+.kal-update-actions {
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--kal-u));
+  flex: 0 0 auto;
+}
+.kal-update-btn {
+  height: calc(22 * var(--kal-u));
+  padding: 0 calc(7 * var(--kal-u));
+  font-size: calc(10 * var(--kal-u));
+}
+.kal-changelog-box {
+  margin-top: calc(3 * var(--kal-u));
+  padding: calc(6 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: calc(6 * var(--kal-u));
+  background: rgb(var(--kal-bg) / 0.55);
+  border: 1px solid rgb(var(--kal-line) / 0.65);
+  font-size: calc(10 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-changelog-box[hidden] {
+  display: none !important;
+}
+.kal-changelog-title {
+  font-weight: 600;
+  color: rgb(var(--kal-fg));
+  margin-bottom: calc(3 * var(--kal-u));
+}
+.kal-changelog-list {
+  margin: 0;
+  padding-left: calc(14 * var(--kal-u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(2.5 * var(--kal-u));
+  line-height: 1.35;
+}

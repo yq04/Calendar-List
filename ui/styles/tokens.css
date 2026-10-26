@@ -1,0 +1,104 @@
+/* ============================================================
+   Kal 主题 token —— 唯一真相源的可视化出口
+   所有视觉参数都从这里读取；theme.js 负责把主题 JSON 写进这些变量。
+   命名规则：--kal-<类别>-<用途>
+   尺寸一律写成 calc(N * var(--kal-u))，N 就是主题里的「设计像素数」。
+   ============================================================ */
+:root {
+  /* ---- 缩放基元 ---- */
+  --kal-ui-scale: 1;
+  --kal-u: calc(1px * var(--kal-ui-scale));
+
+  /* ---- 排版 (Open Props + shadcn/ui CJK Optical Scale) ---- */
+  --kal-font-family: "Inter", "Geist", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", "Segoe UI", "Noto Sans SC", system-ui, sans-serif;
+  --kal-font-family-num: "Inter", "Geist", "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  --kal-font-stretch: 100%;
+  --kal-font-style: normal;
+
+  --kal-fs-day: calc(15 * var(--kal-u));
+  --kal-fs-sub: calc(12.5 * var(--kal-u));
+  --kal-fs-task: calc(11.5 * var(--kal-u));
+  --kal-fs-title: calc(30 * var(--kal-u));
+  --kal-fs-head: calc(11 * var(--kal-u));
+  --kal-fs-agenda: calc(13 * var(--kal-u));
+
+  --kal-fw-day: 600;
+  --kal-fw-title: 700;
+  --kal-fw-task: 400;
+
+  --kal-lh-tight: 1.15;
+  --kal-lh-normal: 1.45;
+  --kal-ls-title: -0.02em;
+  --kal-ls-head: 0.14em;
+  --kal-cell-align: flex-start;
+
+  /* ---- 色彩：表面（默认：星港素纸 Starport Paper 浅色纸感主题） ---- */
+  --kal-bg: 251 246 236;
+  --kal-bg-alpha: 1;
+  --kal-surface: 255 253 247;
+  --kal-surface-alpha: 1;
+  --kal-surface-hover: 232 237 248;
+  --kal-surface-hover-alpha: 1;
+
+  /* ---- 色彩：文字 ---- */
+  --kal-fg: 23 38 72;
+  --kal-fg-muted: 83 99 137;
+  --kal-fg-dim: 83 99 137;
+  --kal-fg-weekend: 163 49 75;
+  --kal-fg-holiday: 163 49 75;
+  --kal-fg-othermonth: 83 99 137;
+
+  /* ---- 色彩：强调与状态 ---- */
+  --kal-accent: 38 73 160;
+  --kal-accent-fg: 255 253 247;
+  --kal-today-bg: 226 233 247;
+  --kal-today-bg-alpha: 1;
+  --kal-today-ring: 38 73 160;
+  --kal-today-ring-alpha: 1;
+  --kal-danger: 163 49 75;
+  --kal-danger-fg: 255 253 247;
+  --kal-focus: 38 73 160;
+  --kal-done: 83 99 137;
+  --kal-selected-bg: 226 233 247;
+  --kal-selected-fg: 23 38 72;
+
+  /* ---- 线条与形状 ---- */
+  --kal-line: 213 220 235;
+  --kal-line-alpha: 1;
+  --kal-border-alpha: 1;
+  --kal-border-w: calc(1 * var(--kal-u));
+  --kal-radius: calc(18 * var(--kal-u));
+  --kal-radius-cell: calc(10 * var(--kal-u));
+  --kal-radius-pill: calc(999 * var(--kal-u));
+  --kal-blur: calc(0 * var(--kal-u));
+  --kal-cell-alpha: 1;
+  --kal-cell-bg-alpha: 1;
+  --kal-text-shadow: none;
+  --kal-shadow: none;
+
+  /* ---- 壁纸与画布背景 ---- */
+  --kal-backdrop-opacity: 0.55;
+  --kal-backdrop-blur: calc(0 * var(--kal-u));
+  --kal-backdrop-brightness: 1;
+  --kal-backdrop-saturate: 1.05;
+  --kal-backdrop-vignette: 0.18;
+  --kal-backdrop-fit: cover;
+  --kal-wallpaper-image: none;
+
+  /* ---- 间距 ---- */
+  --kal-pad: calc(16 * var(--kal-u));
+  --kal-pad-sm: calc(8 * var(--kal-u));
+  --kal-gap: calc(6 * var(--kal-u));
+  --kal-cell-gap: calc(3 * var(--kal-u));
+  --kal-agenda-w: calc(268 * var(--kal-u));
+
+  /* ---- Elaya Nested Radius Formula & Specular Surface ---- */
+  --kal-radius-nested: max(calc(6 * var(--kal-u)), calc(var(--kal-radius) - var(--kal-pad-sm)));
+  --kal-inner-specular: inset 0 1px 0 0 rgb(255 255 255 / 0.07);
+
+  /* ---- Elaya Design-to-Motion Curves ---- */
+  --kal-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --kal-ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --kal-ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  --kal-ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+}

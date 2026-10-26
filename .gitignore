@@ -1,0 +1,41 @@
+# Rust / Tauri build artifacts
+/src-tauri/target/
+/target/
+**/*.rs.bk
+
+# Backup & local temporary folders
+/_backup/
+/.playwright-cli/
+/.local/
+/node_modules/
+
+# Internal session working notes
+/HANDOFF.md
+/findings.md
+/progress.md
+/task_plan.md
+/plans/
+/tools/update_progress.py
+/tools/temp.hex
+/docs/OPTIMIZATION_ROADMAP_2026.md
+/docs/ux-native-verification.md
+/docs/mcp-protocol-evidence.md
+
+# Test runtime & generated performance fixtures (keep only deterministic _fixture/calendar.db)
+/_fixture/*
+!/_fixture/calendar.db
+
+# OS / Editor metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Local environment & debug logs
+.env
+.env.*
+*.log

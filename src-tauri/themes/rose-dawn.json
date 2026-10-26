@@ -1,0 +1,89 @@
+{
+  "schema": "kal.theme/1",
+  "id": "builtin-rose-dawn",
+  "name": "松影晨纸",
+  "source": "preset",
+  "mode": "light",
+  "wallpaper": "",
+  "created": "",
+  "color": {
+    "bg": "#FAF4ED",
+    "bgAlpha": 1,
+    "surface": "#FFFAF3",
+    "surfaceAlpha": 1,
+    "surfaceHover": "#EEE5DE",
+    "surfaceHoverAlpha": 1,
+    "fg": "#464261",
+    "fgMuted": "#645F7B",
+    "fgDim": "#645F7B",
+    "fgWeekend": "#9E4961",
+    "fgHoliday": "#9E4961",
+    "fgOtherMonth": "#645F7B",
+    "accent": "#286983",
+    "accentFg": "#FFFAF3",
+    "danger": "#9E4961",
+    "dangerFg": "#FFFAF3",
+    "focus": "#286983",
+    "done": "#645F7B",
+    "selectedBg": "#F2E9E1",
+    "selectedFg": "#464261",
+    "todayBg": "#F2E9E1",
+    "todayBgAlpha": 1,
+    "todayRing": "#286983",
+    "todayRingAlpha": 1,
+    "line": "#F2E9E1",
+    "lineAlpha": 1,
+    "borderAlpha": 1
+  },
+  "type": {
+    "familyUi": "\"Microsoft YaHei UI\", \"Segoe UI\", \"Microsoft YaHei\", system-ui, sans-serif",
+    "familyNum": "\"Segoe UI Variable Display\", \"Segoe UI\", \"Microsoft YaHei UI\", system-ui, sans-serif",
+    "stretch": 100,
+    "size": {
+      "day": 15,
+      "sub": 12.5,
+      "task": 11.5,
+      "title": 30,
+      "head": 11,
+      "agenda": 13
+    },
+    "weight": {
+      "day": 600,
+      "title": 700,
+      "task": 400
+    },
+    "lineHeight": {
+      "tight": 1.15,
+      "normal": 1.45
+    },
+    "letterSpacing": {
+      "title": -0.02,
+      "head": 0.14
+    },
+    "italic": false,
+    "cellAlign": "left"
+  },
+  "shape": {
+    "radius": 18,
+    "radiusCell": 10,
+    "blur": 0,
+    "shadow": false,
+    "shadowStrength": 0,
+    "borderWidth": 1
+  },
+  "layout": {
+    "pad": 16,
+    "padSm": 8,
+    "gap": 6,
+    "cellGap": 3,
+    "agenda": "side",
+    "agendaWidth": 236,
+    "weekStart": 1,
+    "maxTasks": 3,
+    "showLunar": true,
+    "showWeekendColor": true,
+    "showCellCount": true
+  },
+  "scale": 1,
+  "scaleMode": "auto"
+}

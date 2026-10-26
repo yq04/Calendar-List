@@ -1,0 +1,310 @@
+/* ============================================================
+   Kal 布局层 —— 只关心骨架与尺寸，不关心配色
+   ============================================================ */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: transparent;      /* 关键：给 WebView2 逐像素透明留通道 */
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  font-family: var(--kal-font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "tnum" 1, "cv01" 1;
+}
+
+/* 浏览器里调试时给个假壁纸底，装进外壳后这里是透明的 */
+body.kal-debug-bg {
+  background:
+    radial-gradient(1200px 700px at 18% 12%, #2b3a55 0%, transparent 60%),
+    radial-gradient(900px 600px at 85% 80%, #4a3350 0%, transparent 62%),
+    linear-gradient(150deg, #10141c 0%, #1a1f2b 100%);
+}
+body.kal-mode-light.kal-debug-bg {
+  background:
+    radial-gradient(1200px 700px at 18% 12%, #f5efe2 0%, transparent 60%),
+    radial-gradient(900px 600px at 85% 80%, #e4d9c6 0%, transparent 62%),
+    linear-gradient(145deg, #e5ddd0 0%, #cfc4b0 100%);
+}
+
+.kal-root {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding: var(--kal-pad);
+  gap: var(--kal-pad-sm);
+  font-family: var(--kal-font-family);
+  font-stretch: var(--kal-font-stretch);
+  color: rgb(var(--kal-fg));
+  border-radius: var(--kal-radius);
+  background: rgb(var(--kal-bg) / var(--kal-bg-alpha));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  box-shadow: var(--kal-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: hidden;
+}
+body.kal-use-blur .kal-root {
+  backdrop-filter: blur(var(--kal-blur)) saturate(135%);
+  -webkit-backdrop-filter: blur(var(--kal-blur)) saturate(135%);
+}
+
+/* ---- 壁纸与艺术画布背景层（默认关闭时不占渲染层） ---- */
+.kal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+   display: none;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+  opacity: 0;
+}
+body.kal-has-backdrop .kal-backdrop {
+  display: block;
+  opacity: var(--kal-backdrop-opacity);
+}
+.kal-backdrop-img,
+.kal-backdrop-art {
+  position: absolute;
+  inset: -18px;
+  display: none;
+  filter:
+    blur(var(--kal-backdrop-blur))
+    brightness(var(--kal-backdrop-brightness))
+    saturate(var(--kal-backdrop-saturate));
+  transform: scale(1.03);
+  transition: filter 220ms var(--kal-ease-soft), background-image 280ms var(--kal-ease-soft);
+}
+.kal-backdrop-img {
+  background-image: var(--kal-wallpaper-image);
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: var(--kal-backdrop-fit, cover);
+}
+body.kal-backdrop-img-mode .kal-backdrop-img { display: block; }
+body.kal-backdrop-art-mode .kal-backdrop-art { display: block; }
+
+/* 6 套内置艺术壁纸（纯 CSS 程序化纹理，零外部资源依赖） */
+body[data-backdrop-preset="aurora"] .kal-backdrop-art,
+.kal-backdrop-art {
+  background:
+    radial-gradient(85% 70% at 14% 18%, rgba(56, 189, 248, 0.52) 0%, transparent 62%),
+    radial-gradient(75% 68% at 86% 22%, rgba(168, 85, 247, 0.46) 0%, transparent 64%),
+    radial-gradient(80% 75% at 62% 88%, rgba(16, 185, 129, 0.38) 0%, transparent 66%),
+    linear-gradient(135deg, #0b1325 0%, #151c36 48%, #0e1726 100%);
+}
+body[data-backdrop-preset="ink-paper"] .kal-backdrop-art {
+  background:
+    radial-gradient(95% 55% at 78% 16%, rgba(88, 96, 108, 0.24) 0%, transparent 60%),
+    radial-gradient(80% 48% at 22% 84%, rgba(65, 76, 88, 0.28) 0%, transparent 62%),
+    radial-gradient(60% 35% at 52% 66%, rgba(120, 113, 104, 0.18) 0%, transparent 70%),
+    repeating-linear-gradient(90deg, rgba(160, 152, 140, 0.045) 0px, rgba(160, 152, 140, 0.045) 1px, transparent 1px, transparent 28px),
+    linear-gradient(165deg, #27292e 0%, #1d2025 52%, #17191d 100%);
+}
+body[data-backdrop-preset="sunset-glow"] .kal-backdrop-art {
+  background:
+    radial-gradient(85% 65% at 22% 20%, rgba(251, 146, 60, 0.52) 0%, transparent 62%),
+    radial-gradient(80% 70% at 84% 32%, rgba(244, 63, 94, 0.44) 0%, transparent 64%),
+    radial-gradient(90% 75% at 50% 92%, rgba(139, 92, 246, 0.38) 0%, transparent 68%),
+    linear-gradient(155deg, #271324 0%, #1e152a 55%, #121324 100%);
+}
+body[data-backdrop-preset="cyber-grid"] .kal-backdrop-art {
+  background:
+    radial-gradient(70% 55% at 50% 15%, rgba(34, 211, 238, 0.34) 0%, transparent 65%),
+    radial-gradient(65% 55% at 82% 82%, rgba(232, 121, 249, 0.30) 0%, transparent 65%),
+    linear-gradient(rgba(56, 189, 248, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.09) 1px, transparent 1px),
+    linear-gradient(180deg, #090d1a 0%, #10172b 55%, #0b0f1d 100%);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px, 100% 100%;
+}
+body[data-backdrop-preset="forest-mist"] .kal-backdrop-art {
+  background:
+    radial-gradient(85% 65% at 18% 16%, rgba(52, 211, 153, 0.40) 0%, transparent 62%),
+    radial-gradient(75% 65% at 85% 75%, rgba(20, 184, 166, 0.34) 0%, transparent 64%),
+    radial-gradient(60% 50% at 65% 18%, rgba(250, 204, 21, 0.18) 0%, transparent 60%),
+    linear-gradient(150deg, #0d1f1c 0%, #132824 50%, #0b1817 100%);
+}
+body[data-backdrop-preset="warm-grain"] .kal-backdrop-art {
+  background:
+    radial-gradient(80% 65% at 20% 22%, rgba(217, 119, 6, 0.36) 0%, transparent 62%),
+    radial-gradient(75% 65% at 82% 78%, rgba(180, 83, 9, 0.32) 0%, transparent 64%),
+    repeating-linear-gradient(45deg, rgba(255, 245, 230, 0.025) 0px, rgba(255, 245, 230, 0.025) 2px, transparent 2px, transparent 8px),
+    linear-gradient(145deg, #261d18 0%, #1e1815 54%, #161210 100%);
+}
+
+.kal-backdrop-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 45%,
+    transparent 35%,
+    rgba(0, 0, 0, var(--kal-backdrop-vignette, 0.18)) 100%
+  );
+}
+
+.kal-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--kal-u));
+  flex: 0 0 auto;
+  min-height: calc(40 * var(--kal-u));
+}
+
+.kal-title {
+  display: flex;
+  align-items: baseline;
+  gap: calc(8 * var(--kal-u));
+  min-width: 0;
+  padding: calc(4 * var(--kal-u)) calc(6 * var(--kal-u));
+  margin-left: calc(-6 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  cursor: pointer;
+  transition: background-color 140ms var(--kal-ease-out);
+}
+.kal-title:hover {
+  background: rgb(var(--kal-surface-hover) / 0.55);
+}
+.kal-title:focus-visible {
+  outline: 2px solid rgb(var(--kal-focus));
+  outline-offset: 2px;
+}
+.kal-brand-logo {
+  width: calc(22 * var(--kal-u));
+  height: calc(22 * var(--kal-u));
+  border-radius: calc(5 * var(--kal-u));
+  object-fit: cover;
+  flex: 0 0 auto;
+  align-self: center;
+  transform: translateY(calc(1 * var(--kal-u)));
+}
+.kal-title-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(6 * var(--kal-u));
+}
+.kal-month-label {
+  font-family: var(--kal-font-family-num);
+  font-size: calc(24 * var(--kal-u));
+  font-weight: 600;
+  font-style: var(--kal-font-style);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: rgb(var(--kal-fg));
+  text-shadow: var(--kal-text-shadow);
+}
+.kal-year-label {
+  font-family: var(--kal-font-family-num);
+  font-size: calc(13 * var(--kal-u));
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--kal-fg-muted));
+  text-shadow: var(--kal-text-shadow);
+}
+.kal-lunar-year {
+  font-size: calc(11.5 * var(--kal-u));
+  font-weight: 400;
+  color: rgb(var(--kal-fg-muted));
+  white-space: nowrap;
+  line-height: 1.25;
+}
+body.kal-no-lunar .kal-lunar-year { display: none; }
+
+.kal-spacer { flex: 1 1 auto; }
+.kal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(2 * var(--kal-u));
+  padding: calc(2 * var(--kal-u)) calc(3 * var(--kal-u));
+  border-radius: calc(7 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.65);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.65));
+}
+.kal-meta { display: flex; align-items: center; gap: calc(6 * var(--kal-u)); }
+
+.kal-body {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+  display: flex;
+  gap: calc(14 * var(--kal-u));
+  min-height: 0;
+}
+.kal-calendar-col {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kal-gap);
+  min-width: 0;
+}
+.kal-weekhead {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--kal-cell-gap);
+  flex: 0 0 auto;
+}
+.kal-grid {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  gap: var(--kal-cell-gap);
+  min-height: 0;
+}
+/* ---- 周视图（借鉴 WeekToDo / DayPilot 纵向周看板） ---- */
+body.kal-view-week .kal-grid {
+  grid-template-rows: minmax(0, 1fr);
+}
+body.kal-view-week .kal-cell:not(.is-current-week) {
+  display: none;
+}
+.kal-agenda {
+  flex: 0 0 var(--kal-agenda-w);
+  display: flex;
+  flex-direction: column;
+  gap: calc(7 * var(--kal-u));
+  padding: calc(11 * var(--kal-u)) calc(12 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface) / var(--kal-cell-bg-alpha, var(--kal-surface-alpha)));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.65));
+  min-height: 0;
+}
+
+/* ---- 网格风格切换：cards（默认卡片） / grid（通栏线框） / minimal（极简呼吸） ---- */
+body.kal-grid-table .kal-grid {
+  gap: 0;
+  border-top: max(1px, var(--kal-border-w)) solid rgb(var(--kal-line) / max(0.09, var(--kal-border-alpha)));
+  border-left: max(1px, var(--kal-border-w)) solid rgb(var(--kal-line) / max(0.09, var(--kal-border-alpha)));
+  border-radius: var(--kal-radius-cell);
+  overflow: hidden;
+}
+body.kal-grid-table .kal-cell {
+  border-radius: 0;
+  border-top: 0;
+  border-left: 0;
+  border-right: max(1px, var(--kal-border-w)) solid rgb(var(--kal-line) / max(0.09, var(--kal-border-alpha)));
+  border-bottom: max(1px, var(--kal-border-w)) solid rgb(var(--kal-line) / max(0.09, var(--kal-border-alpha)));
+}
+body.kal-grid-minimal .kal-cell:not(.is-today):not(.is-selected):not(:hover) {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* 布局开关：隐藏日程栏 */
+body.kal-agenda-hidden .kal-agenda { display: none; }
+
+/* 字体样式开关：斜体 / 格内居中 */
+body.kal-font-italic { --kal-font-style: italic; }
+body.kal-cell-center { --kal-cell-align: center; }

@@ -1,0 +1,1670 @@
+/* ============================================================
+   Kal 组件层
+   ============================================================ */
+
+/* ---- 按钮 (Elaya Design-to-Motion & Phosphor/Solar Icon Support) ---- */
+.kal-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(4 * var(--kal-u));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  background: rgb(var(--kal-surface) / var(--kal-surface-alpha));
+  color: rgb(var(--kal-fg));
+  font-family: inherit;
+  font-size: calc(12.5 * var(--kal-u));
+  font-weight: 400;
+  line-height: 1;
+  min-width: calc(28 * var(--kal-u));
+  height: calc(28 * var(--kal-u));
+  padding: 0 calc(9 * var(--kal-u));
+  border-radius: calc(7 * var(--kal-u));
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.kal-btn:hover {
+  background: rgb(var(--kal-surface-hover) / 0.65);
+  border-color: rgb(var(--kal-line) / calc(var(--kal-border-alpha) * 1.2));
+}
+.kal-btn:active:not(:disabled) { transform: scale(0.96); }
+.kal-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.kal-btn[hidden] { display: none !important; }
+.kal-btn.is-active {
+  background: rgb(var(--kal-accent) / 0.14);
+  border-color: rgb(var(--kal-accent) / 0.45);
+  color: rgb(var(--kal-accent));
+}
+.kal-btn-ghost {
+  font-size: calc(11.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+  background: transparent;
+  border-color: transparent;
+}
+.kal-btn-ghost:hover {
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface-hover) / 0.55);
+  border-color: transparent;
+}
+.kal-btn-icon { padding: 0; width: calc(28 * var(--kal-u)); }
+
+/* ---- 顶部导航胶囊组 (< 今天 > | 周视图) 精致紧凑化 ---- */
+.kal-nav #kal-prev,
+.kal-nav #kal-next {
+  width: calc(21 * var(--kal-u));
+  min-width: calc(21 * var(--kal-u));
+  height: calc(22 * var(--kal-u));
+  padding: 0;
+  border-radius: calc(5 * var(--kal-u));
+  border-color: transparent;
+  background: transparent;
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-nav #kal-prev:hover,
+.kal-nav #kal-next:hover {
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface-hover) / 0.72);
+  border-color: transparent;
+}
+.kal-nav #kal-prev .kal-icon-svg,
+.kal-nav #kal-next .kal-icon-svg {
+  width: calc(12.5 * var(--kal-u));
+  height: calc(12.5 * var(--kal-u));
+  stroke-width: 1.85;
+}
+.kal-nav #kal-today,
+.kal-nav #kal-view-toggle {
+  height: calc(22 * var(--kal-u));
+  min-width: auto;
+  padding: 0 calc(7 * var(--kal-u));
+  font-size: calc(11.5 * var(--kal-u));
+  font-weight: 500;
+  border-radius: calc(5 * var(--kal-u));
+  border-color: transparent;
+  color: rgb(var(--kal-fg));
+}
+.kal-nav #kal-today:hover,
+.kal-nav #kal-view-toggle:hover {
+  background: rgb(var(--kal-surface-hover) / 0.72);
+}
+.kal-nav #kal-view-toggle {
+  color: rgb(var(--kal-fg-muted));
+  margin-left: calc(2 * var(--kal-u));
+  padding-left: calc(8 * var(--kal-u));
+  border-left: 1px solid rgb(var(--kal-line) / 0.65);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.kal-nav #kal-view-toggle.is-active {
+  color: rgb(var(--kal-accent));
+  font-weight: 600;
+}
+.kal-version-pill {
+  display: inline-flex;
+  align-items: center;
+  height: calc(17 * var(--kal-u));
+  padding: 0 calc(5.5 * var(--kal-u));
+  border-radius: var(--kal-radius-pill);
+  font-family: var(--kal-font-family-num);
+  font-size: calc(10 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-accent));
+  background: rgb(var(--kal-accent) / 0.10);
+  border: 1px solid rgb(var(--kal-accent) / 0.24);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+#kal-lock-btn,
+#kal-privacy-btn,
+#kal-quick-glass {
+  padding: 0;
+  width: calc(28 * var(--kal-u));
+}
+#kal-lock-btn span,
+#kal-privacy-btn span,
+#kal-quick-glass span {
+  display: none;
+}
+.kal-icon-svg {
+  width: calc(14 * var(--kal-u));
+  height: calc(14 * var(--kal-u));
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  pointer-events: none;
+}
+
+/* ---- 年月快速跳转弹层 ---- */
+.kal-ym-popover {
+  position: absolute;
+  top: calc(52 * var(--kal-u));
+  left: var(--kal-pad);
+  width: calc(248 * var(--kal-u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--kal-u));
+  padding: calc(10 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-bg) / 0.99);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / 0.85);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  z-index: 30;
+}
+.kal-ym-popover[hidden] { display: none !important; }
+.kal-ym-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(4 * var(--kal-u));
+}
+.kal-ym-year-input {
+  width: calc(76 * var(--kal-u));
+  height: calc(26 * var(--kal-u));
+  text-align: center;
+  font-family: var(--kal-font-family-num);
+  font-size: calc(13 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface) / 0.55);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: calc(6 * var(--kal-u));
+  outline: none;
+}
+.kal-ym-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: calc(5 * var(--kal-u));
+}
+.kal-ym-month {
+  appearance: none;
+  height: calc(28 * var(--kal-u));
+  border-radius: calc(6 * var(--kal-u));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-line-alpha));
+  background: rgb(var(--kal-surface) / 0.38);
+  color: rgb(var(--kal-fg));
+  font: inherit;
+  font-size: calc(11.5 * var(--kal-u));
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.kal-ym-month:hover {
+  background: rgb(var(--kal-surface-hover) / 0.14);
+}
+.kal-ym-month.is-current {
+  background: rgb(var(--kal-accent));
+  color: rgb(var(--kal-accent-fg));
+  border-color: transparent;
+  font-weight: 600;
+}
+
+/* ---- 搜索弹层 ---- */
+.kal-search-popover {
+  position: absolute;
+  top: calc(52 * var(--kal-u));
+  right: var(--kal-pad);
+  width: min(calc(360 * var(--kal-u)), calc(100% - 2 * var(--kal-pad)));
+  max-height: calc(340 * var(--kal-u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--kal-u));
+  padding: calc(10 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-bg) / 0.99);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / 0.85);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  z-index: 30;
+}
+.kal-search-popover[hidden] { display: none !important; }
+.kal-search-bar {
+  display: flex;
+  gap: calc(6 * var(--kal-u));
+  align-items: center;
+}
+.kal-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: calc(30 * var(--kal-u));
+  padding: 0 calc(9 * var(--kal-u));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface) / 0.48);
+  color: rgb(var(--kal-fg));
+  font: inherit;
+  font-size: calc(12 * var(--kal-u));
+  outline: none;
+  user-select: text;
+}
+.kal-search-input:focus { border-color: rgb(var(--kal-accent) / 0.8); }
+.kal-search-filters {
+  display: flex;
+  gap: calc(5 * var(--kal-u));
+  align-items: center;
+}
+.kal-filter-chip {
+  appearance: none;
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  background: rgb(var(--kal-surface) / 0.35);
+  color: rgb(var(--kal-fg-muted));
+  font: inherit;
+  font-size: calc(10.5 * var(--kal-u));
+  padding: calc(2 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: var(--kal-radius-pill);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.kal-filter-chip:hover {
+  background: rgb(var(--kal-surface-hover) / 0.14);
+}
+.kal-filter-chip.is-active {
+  background: rgb(var(--kal-accent) / 0.22);
+  border-color: rgb(var(--kal-accent) / 0.65);
+  color: rgb(var(--kal-accent));
+  font-weight: 600;
+}
+.kal-search-meta {
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  min-height: calc(14 * var(--kal-u));
+}
+.kal-search-meta.is-warn { color: rgb(var(--kal-danger)); }
+.kal-search-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--kal-u));
+  max-height: calc(240 * var(--kal-u));
+}
+.kal-search-item {
+  display: flex;
+  align-items: baseline;
+  gap: calc(7 * var(--kal-u));
+  padding: calc(5 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface-hover) / 0.05);
+  border: var(--kal-border-w) solid transparent;
+  font-size: calc(12 * var(--kal-u));
+  cursor: pointer;
+}
+.kal-search-item:hover,
+.kal-search-item.is-active {
+  background: rgb(var(--kal-surface-hover) / 0.14);
+  border-color: rgb(var(--kal-accent) / 0.55);
+}
+.kal-search-item.is-done .kal-search-item-title { color: rgb(var(--kal-done)); text-decoration: line-through; }
+.kal-search-item-date {
+  flex: 0 0 auto;
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-accent));
+  font-variant-numeric: tabular-nums;
+}
+.kal-search-item-time {
+  flex: 0 0 auto;
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  font-variant-numeric: tabular-nums;
+}
+.kal-search-item-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kal-tag {
+  display: none;
+  font-size: calc(10 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  white-space: nowrap;
+}
+.kal-tag.is-warn { display: inline-block; color: rgb(var(--kal-danger)); }
+
+.kal-week-badge {
+  font-size: calc(11.5 * var(--kal-u));
+  font-weight: 400;
+  color: rgb(var(--kal-fg-muted));
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+body.kal-no-week-number .kal-week-badge,
+body.kal-no-week-number .kal-agenda-week-pill {
+  display: none !important;
+}
+
+/* ---- 星期头 ---- */
+.kal-weekhead > div {
+  text-align: center;
+  font-size: var(--kal-fs-head);
+  letter-spacing: var(--kal-ls-head);
+  color: rgb(var(--kal-fg-muted));
+  padding-bottom: calc(2 * var(--kal-u));
+  text-shadow: var(--kal-text-shadow);
+}
+.kal-weekhead > div.is-weekend { color: rgb(var(--kal-fg-weekend) / 0.82); }
+
+/* ---- 月历格（极简轻量渲染，无逐格关键帧动画，低配电脑友好） ---- */
+.kal-cell {
+  position: relative;
+  contain: layout style;
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--kal-u));
+  padding: calc(5 * var(--kal-u)) calc(6 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface) / var(--kal-cell-bg-alpha, 0.14));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.55));
+  overflow: hidden;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.kal-cell:hover {
+  background: rgb(var(--kal-surface-hover) / 0.55);
+  border-color: rgb(var(--kal-line));
+}
+.kal-cell.is-other-month { color: rgb(var(--kal-fg-othermonth)); opacity: 0.55; }
+.kal-cell.is-today {
+  background: rgb(var(--kal-today-bg) / var(--kal-today-bg-alpha));
+  border-color: rgb(var(--kal-today-ring) / 0.55);
+}
+.kal-cell.is-selected {
+  background: rgb(var(--kal-selected-bg));
+  color: rgb(var(--kal-selected-fg));
+  border-color: rgb(var(--kal-focus) / 0.65);
+}
+.kal-cell.is-selected .kal-daynum, .kal-cell.is-selected .kal-task, .kal-cell.is-selected .kal-sub { color: rgb(var(--kal-selected-fg)); }
+
+/* ---- 周视图专属纵向卡片增强 (WeekToDo 风格，修复负缩进并遵循换行策略) ---- */
+body.kal-view-week .kal-cell.is-current-week {
+  padding: calc(9 * var(--kal-u)) calc(8 * var(--kal-u));
+  gap: calc(5 * var(--kal-u));
+}
+body.kal-view-week .kal-cell.is-current-week .kal-tasks {
+  gap: calc(4 * var(--kal-u));
+  overflow-y: auto;
+}
+body.kal-view-week .kal-cell.is-current-week .kal-task {
+  white-space: pre-wrap;
+  text-indent: 0;
+  padding: calc(3.5 * var(--kal-u)) calc(6 * var(--kal-u));
+  border-radius: calc(5 * var(--kal-u));
+  background: rgb(var(--kal-surface-hover) / 0.06);
+  line-height: 1.35;
+}
+body.kal-view-week.kal-task-clamp2 .kal-cell.is-current-week .kal-task {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+body.kal-view-week.kal-task-nowrap .kal-cell.is-current-week .kal-task {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.kal-view-week .kal-cell.is-current-week .kal-task::before {
+  display: inline-block;
+  margin-right: calc(4 * var(--kal-u));
+  vertical-align: middle;
+}
+
+.kal-cell-head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(4 * var(--kal-u));
+  flex: 0 0 auto;
+  justify-content: space-between;
+}
+body.kal-cell-center .kal-cell-head {
+  justify-content: center;
+}
+.kal-cell-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3.5 * var(--kal-u));
+  min-width: 0;
+  overflow: hidden;
+}
+.kal-cell-add-btn {
+  appearance: none;
+  flex: 0 0 auto;
+  width: calc(16 * var(--kal-u));
+  height: calc(16 * var(--kal-u));
+  padding: 0;
+  border: 1px solid rgb(var(--kal-line) / 0.75);
+  border-radius: calc(4 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.92);
+  color: rgb(var(--kal-accent));
+  font-family: var(--kal-font-family-num);
+  font-size: calc(11.5 * var(--kal-u));
+  font-weight: 600;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--kal-ease-out), background-color 120ms var(--kal-ease-out), color 120ms var(--kal-ease-out);
+}
+.kal-cell:hover .kal-cell-add-btn,
+.kal-cell:focus-within .kal-cell-add-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.kal-cell-add-btn:hover {
+  background: rgb(var(--kal-accent));
+  color: rgb(var(--kal-accent-fg));
+  border-color: transparent;
+}
+.kal-cell-badge {
+  flex: 0 0 auto;
+  font-size: calc(9 * var(--kal-u));
+  font-weight: 500;
+  line-height: 1.15;
+  padding: calc(1 * var(--kal-u)) calc(3.5 * var(--kal-u));
+  border-radius: calc(3.5 * var(--kal-u));
+  letter-spacing: 0;
+}
+.kal-cell-badge.is-rest {
+  color: rgb(var(--kal-fg-holiday));
+  background: rgb(var(--kal-fg-holiday) / 0.11);
+}
+.kal-cell-badge.is-work {
+  color: rgb(var(--kal-fg-muted));
+  background: rgb(var(--kal-fg-muted) / 0.12);
+}
+body.kal-no-holiday-badge .kal-cell-badge {
+  display: none !important;
+}
+.kal-daynum {
+  font-family: var(--kal-font-family-num);
+  font-size: var(--kal-fs-day);
+  font-weight: 500;
+  font-style: var(--kal-font-style);
+  line-height: var(--kal-lh-tight);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--kal-text-shadow);
+}
+.kal-cell.is-weekend .kal-daynum { color: rgb(var(--kal-fg-weekend)); }
+.kal-cell.is-work-makeup.is-weekend .kal-daynum { color: rgb(var(--kal-fg)); }
+.kal-cell.is-holiday .kal-daynum,
+.kal-cell.is-rest-day .kal-daynum { color: rgb(var(--kal-fg-holiday)); }
+.kal-cell.is-other-month .kal-daynum { color: rgb(var(--kal-fg-othermonth)); }
+.kal-cell.is-today .kal-daynum { color: rgb(var(--kal-today-ring)); font-weight: 600; }
+body.kal-no-weekend-color .kal-cell.is-weekend .kal-daynum { color: inherit; }
+
+.kal-sub {
+  font-size: var(--kal-fs-sub);
+  font-weight: 400;
+  color: rgb(var(--kal-fg-muted));
+  line-height: var(--kal-lh-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: var(--kal-text-shadow);
+}
+.kal-sub.is-term { color: rgb(var(--kal-accent)); font-weight: 400; }
+.kal-sub.is-festival { color: rgb(var(--kal-fg-holiday)); font-weight: 400; }
+body.kal-no-lunar .kal-sub { display: none; }
+
+.kal-tasks {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--kal-u));
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  min-height: 0;
+}
+.kal-tasks::-webkit-scrollbar {
+  display: none;
+}
+/* 某格有多条事项时自动限制单条最高2行，防止单条长文本撑满整格吞掉后续事项 */
+body:not(.kal-view-week) .kal-cell.is-multi-tasks .kal-task {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* 某格有3条及以上事项时自动切换为紧凑单行截断，保证每行完整显示且绝不半行截断 */
+body:not(.kal-view-week) .kal-cell.is-crowded .kal-task {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.28;
+}
+.kal-cell-inline-editor {
+  display: flex;
+  width: 100%;
+  margin-top: calc(1 * var(--kal-u));
+}
+.kal-cell-inline-input {
+  width: 100%;
+  min-width: 0;
+  height: calc(21 * var(--kal-u));
+  padding: 0 calc(5 * var(--kal-u));
+  border: 1px solid rgb(var(--kal-accent) / 0.85);
+  border-radius: calc(4 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.96);
+  color: rgb(var(--kal-fg));
+  font: inherit;
+  font-size: var(--kal-fs-task);
+  line-height: 1.25;
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--kal-accent) / 0.14);
+}
+.kal-task {
+  display: block;
+  font-size: var(--kal-fs-task);
+  font-weight: var(--kal-fw-task);
+  font-style: var(--kal-font-style);
+  color: rgb(var(--kal-fg));
+  line-height: 1.38;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  text-wrap: pretty;
+  padding-left: calc(9 * var(--kal-u));
+  text-indent: calc(-9 * var(--kal-u));
+  text-shadow: var(--kal-text-shadow);
+}
+body.kal-bullet-none .kal-task {
+  padding-left: 0;
+  text-indent: 0;
+}
+body.kal-task-clamp2 .kal-task {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+body.kal-task-nowrap .kal-task {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kal-task::before {
+  content: "";
+  display: inline-block;
+  width: calc(4.2 * var(--kal-u));
+  height: calc(4.2 * var(--kal-u));
+  margin-right: calc(4.3 * var(--kal-u));
+  border-radius: 50%;
+  background: rgb(var(--kal-accent) / 0.9);
+  vertical-align: middle;
+  transform: translateY(calc(-1 * var(--kal-u)));
+}
+body.kal-bullet-number .kal-task {
+  padding-left: calc(13 * var(--kal-u));
+  text-indent: calc(-13 * var(--kal-u));
+}
+body.kal-bullet-number .kal-task::before {
+  content: attr(data-idx);
+  width: auto;
+  height: auto;
+  margin-right: calc(3 * var(--kal-u));
+  border-radius: 0;
+  background: transparent;
+  color: rgb(var(--kal-accent));
+  font-family: var(--kal-font-family-num);
+  font-size: calc(0.88 * var(--kal-fs-task));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transform: none;
+}
+body.kal-bullet-none .kal-task::before {
+  display: none;
+}
+.kal-task.is-done { color: rgb(var(--kal-fg-dim)); text-decoration: line-through; }
+.kal-task.is-done::before { background: rgb(var(--kal-fg-dim)); }
+body.kal-bullet-number .kal-task.is-done::before {
+  background: transparent;
+  color: rgb(var(--kal-fg-dim));
+}
+.kal-task-more {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: auto;
+  font-family: var(--kal-font-family-num);
+  font-size: calc(10 * var(--kal-u));
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgb(var(--kal-accent));
+  background: rgb(var(--kal-accent) / 0.10);
+  padding: calc(1.5 * var(--kal-u)) calc(6 * var(--kal-u));
+  border-radius: calc(4 * var(--kal-u));
+  cursor: pointer;
+  transition: background-color 120ms var(--kal-ease-out);
+}
+.kal-task-more:hover {
+  background: rgb(var(--kal-accent) / 0.18);
+}
+
+.kal-cell-count {
+  display: none;
+}
+body.kal-no-cell-count .kal-cell-count { display: none; }
+
+/* ---- 日程面板 (与左侧日历格统一字体、字重、色彩与卡片层级) ---- */
+.kal-agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: calc(4 * var(--kal-u));
+  column-gap: calc(6 * var(--kal-u));
+  flex: 0 0 auto;
+}
+.kal-agenda-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--kal-u));
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.kal-agenda-copy-btn {
+  height: calc(22 * var(--kal-u));
+  min-width: calc(26 * var(--kal-u));
+  padding: 0 calc(6 * var(--kal-u));
+  font-size: calc(10.5 * var(--kal-u));
+  border-radius: calc(5 * var(--kal-u));
+}
+#kal-agenda-ics {
+  display: none;
+}
+.kal-agenda-date {
+  flex: 1 0 auto;
+  font-family: var(--kal-font-family-num);
+  font-size: calc(15.5 * var(--kal-u));
+  font-weight: var(--kal-fw-day);
+  letter-spacing: -0.01em;
+  line-height: var(--kal-lh-tight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: rgb(var(--kal-fg));
+  text-shadow: var(--kal-text-shadow);
+}
+.kal-count {
+  font-family: var(--kal-font-family-num);
+  font-size: calc(11 * var(--kal-u));
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--kal-fg-dim));
+  white-space: nowrap;
+  margin-right: calc(2 * var(--kal-u));
+}
+.kal-agenda-sub {
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--kal-u));
+  font-size: var(--kal-fs-sub);
+  color: rgb(var(--kal-fg-muted));
+  padding-bottom: calc(5 * var(--kal-u));
+  border-bottom: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.55));
+  flex: 0 0 auto;
+}
+.kal-agenda-sub-row {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--kal-u));
+  flex-wrap: wrap;
+  line-height: 1.3;
+}
+.kal-rel-badge {
+  font-size: calc(11 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-accent));
+  background: rgb(var(--kal-accent) / 0.10);
+  padding: calc(1 * var(--kal-u)) calc(5.5 * var(--kal-u));
+  border-radius: calc(4 * var(--kal-u));
+}
+.kal-agenda-week-pill {
+  display: none;
+}
+.kal-yiji-box {
+  display: none !important;
+}
+.kal-yiji-ganzhi,
+.kal-yiji-detail {
+  display: none;
+}
+.kal-yiji-pills {
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--kal-u));
+}
+.kal-yiji-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(5 * var(--kal-u));
+  font-size: calc(11 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+  line-height: 1.35;
+}
+.kal-yiji-tag {
+  display: inline-grid;
+  place-items: center;
+  width: calc(16 * var(--kal-u));
+  height: calc(16 * var(--kal-u));
+  border-radius: calc(3.5 * var(--kal-u));
+  font-size: calc(10 * var(--kal-u));
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.kal-yiji-pill.is-yi .kal-yiji-tag {
+  color: rgb(var(--kal-accent));
+  background: rgb(var(--kal-accent) / 0.11);
+}
+.kal-yiji-pill.is-ji .kal-yiji-tag {
+  color: rgb(var(--kal-fg-holiday));
+  background: rgb(var(--kal-fg-holiday) / 0.11);
+}
+.kal-agenda-progress {
+  display: none;
+}
+.kal-agenda-add {
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 * var(--kal-u));
+  flex: 0 0 auto;
+}
+.kal-agenda-add-main {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--kal-u));
+  width: 100%;
+}
+.kal-agenda-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: calc(30 * var(--kal-u));
+  padding: 0 calc(9 * var(--kal-u));
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface) / 0.65);
+  color: rgb(var(--kal-fg));
+  font: inherit;
+  font-size: calc(12 * var(--kal-u));
+  outline: none;
+  user-select: text;
+  transition: border-color 140ms var(--kal-ease-out), box-shadow 140ms var(--kal-ease-out);
+}
+.kal-agenda-input:focus {
+  border-color: rgb(var(--kal-accent) / 0.85);
+  box-shadow: 0 0 0 2px rgb(var(--kal-accent) / 0.14);
+}
+.kal-agenda-input.is-quick-pulse {
+  box-shadow: 0 0 0 3px rgb(var(--kal-accent) / 0.28);
+}
+.kal-agenda-input:disabled { opacity: 0.52; cursor: not-allowed; }
+.kal-time-toggle-btn,
+.kal-agenda-add-btn {
+  flex: 0 0 auto;
+  width: calc(30 * var(--kal-u));
+  min-width: calc(30 * var(--kal-u));
+  height: calc(30 * var(--kal-u));
+}
+.kal-time-toggle-btn {
+  position: relative;
+  color: rgb(var(--kal-fg-muted));
+  background: rgb(var(--kal-surface) / 0.45);
+}
+.kal-time-toggle-btn.is-active,
+.kal-time-toggle-btn.has-time {
+  color: rgb(var(--kal-accent));
+  border-color: rgb(var(--kal-accent) / 0.55);
+  background: rgb(var(--kal-accent) / 0.10);
+}
+.kal-time-toggle-btn.has-time::after {
+  content: "";
+  position: absolute;
+  top: calc(4 * var(--kal-u));
+  right: calc(4 * var(--kal-u));
+  width: calc(5 * var(--kal-u));
+  height: calc(5 * var(--kal-u));
+  border-radius: 50%;
+  background: rgb(var(--kal-accent));
+}
+.kal-agenda-add-btn {
+  color: rgb(var(--kal-accent-fg));
+  background: rgb(var(--kal-accent));
+  border-color: transparent;
+}
+.kal-agenda-add-btn:hover:not(:disabled) {
+  background: rgb(var(--kal-accent) / 0.90);
+  color: rgb(var(--kal-accent-fg));
+}
+.kal-agenda-add-meta {
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 * var(--kal-u));
+  padding: calc(7 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface) / 0.72);
+  border: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.75));
+}
+.kal-agenda-add-meta[hidden] {
+  display: none !important;
+}
+.kal-agenda-meta-row {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--kal-u));
+  flex-wrap: wrap;
+}
+.kal-agenda-meta-label {
+  flex: 0 0 auto;
+  font-size: calc(10.5 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-agenda-time-input,
+.kal-agenda-date-input {
+  height: calc(23 * var(--kal-u));
+  padding: 0 calc(6 * var(--kal-u));
+  border: 1px solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: calc(5 * var(--kal-u));
+  background: rgb(var(--kal-bg) / 0.55);
+  color: rgb(var(--kal-fg));
+  font-family: var(--kal-font-family-num);
+  font-size: calc(11 * var(--kal-u));
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+.kal-agenda-time-input {
+  width: calc(72 * var(--kal-u));
+}
+.kal-agenda-date-input {
+  flex: 1 1 auto;
+  min-width: calc(108 * var(--kal-u));
+}
+.kal-agenda-time-input:focus,
+.kal-agenda-date-input:focus {
+  border-color: rgb(var(--kal-accent));
+}
+.kal-agenda-time-input[aria-invalid="true"] {
+  border-color: rgb(var(--kal-danger));
+}
+.kal-agenda-time-presets {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--kal-u));
+  flex-wrap: wrap;
+}
+.kal-time-chip {
+  appearance: none;
+  height: calc(21 * var(--kal-u));
+  padding: 0 calc(5.5 * var(--kal-u));
+  border-radius: calc(4.5 * var(--kal-u));
+  border: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.8));
+  background: rgb(var(--kal-surface) / 0.6);
+  color: rgb(var(--kal-fg-muted));
+  font-family: var(--kal-font-family-num);
+  font-size: calc(10 * var(--kal-u));
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 120ms var(--kal-ease-out), color 120ms var(--kal-ease-out), border-color 120ms var(--kal-ease-out);
+}
+.kal-time-chip:hover {
+  color: rgb(var(--kal-fg));
+  border-color: rgb(var(--kal-accent) / 0.55);
+}
+.kal-time-chip.is-active {
+  color: rgb(var(--kal-accent-fg));
+  background: rgb(var(--kal-accent));
+  border-color: transparent;
+}
+.kal-prio-chip.is-active {
+  color: rgb(var(--kal-danger-fg));
+  background: rgb(var(--kal-danger));
+  border-color: transparent;
+}
+
+/* ---- 一键防窥隐私遮罩（悬停可临时窥视） ---- */
+body.kal-privacy-mode .kal-task,
+body.kal-privacy-mode .kal-agenda-text,
+body.kal-privacy-mode .kal-countdown-title,
+body.kal-privacy-mode .kal-note-title,
+body.kal-privacy-mode .kal-note-content {
+  filter: blur(5px);
+  transition: filter 200ms var(--kal-ease-soft);
+}
+body.kal-privacy-mode .kal-cell:hover .kal-task,
+body.kal-privacy-mode .kal-agenda-list li:hover .kal-agenda-text,
+body.kal-privacy-mode .kal-countdown-card:hover .kal-countdown-title,
+body.kal-privacy-mode .kal-note-entry:hover .kal-note-title,
+body.kal-privacy-mode .kal-note-entry:hover .kal-note-content {
+  filter: blur(0);
+}
+.kal-write-status {
+  min-height: calc(13 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  font-size: calc(10.5 * var(--kal-u));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kal-write-status:empty { display: none; }
+.kal-write-status.is-error { color: rgb(var(--kal-danger)); }
+.kal-pending-box {
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--kal-u));
+  padding: calc(7 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-surface) / 0.68);
+  border: var(--kal-border-w) solid rgb(var(--kal-accent) / 0.65);
+  font-size: calc(11 * var(--kal-u));
+}
+.kal-pending-box[hidden] { display: none !important; }
+.kal-pending-summary {
+  color: rgb(var(--kal-fg));
+  line-height: 1.35;
+  word-break: break-word;
+}
+.kal-pending-actions {
+  display: flex;
+  gap: calc(6 * var(--kal-u));
+  justify-content: flex-end;
+}
+.kal-pending-btn {
+  height: calc(24 * var(--kal-u));
+  min-width: calc(48 * var(--kal-u));
+  padding: 0 calc(8 * var(--kal-u));
+  font-size: calc(11 * var(--kal-u));
+}
+.kal-pending-btn.is-confirm {
+  border-color: rgb(var(--kal-accent) / 0.75);
+  color: rgb(var(--kal-accent));
+}
+.kal-agenda-list {
+  flex: 1 1 auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 * var(--kal-u));
+  min-height: calc(56 * var(--kal-u));
+}
+.kal-agenda-list li {
+  position: relative;
+  display: flex;
+  gap: calc(5 * var(--kal-u));
+  align-items: flex-start;
+  font-size: calc(12.5 * var(--kal-u));
+  font-weight: var(--kal-fw-task);
+  font-style: var(--kal-font-style);
+  line-height: calc(20 * var(--kal-u));
+  padding: calc(4 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: calc(7 * var(--kal-u));
+  background: rgb(var(--kal-bg) / 0.55);
+  border: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.62));
+  transition: background-color 140ms var(--kal-ease-out), border-color 140ms var(--kal-ease-out);
+}
+.kal-agenda-list li:hover:not(.is-empty) {
+  background: rgb(var(--kal-surface-hover) / 0.52);
+  border-color: rgb(var(--kal-line));
+}
+.kal-agenda-list li.is-done .kal-agenda-text { text-decoration: line-through; color: rgb(var(--kal-done)); }
+.kal-agenda-list li.is-empty {
+  justify-content: center;
+  padding: calc(16 * var(--kal-u)) calc(8 * var(--kal-u));
+  font-size: calc(12 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  background: transparent;
+  border-color: transparent;
+  cursor: pointer;
+}
+.kal-agenda-inline-trigger {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 100%;
+  height: calc(26 * var(--kal-u));
+  padding: 0 calc(8 * var(--kal-u));
+  border: 1px dashed rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.85));
+  border-radius: calc(6 * var(--kal-u));
+  background: rgb(var(--kal-bg) / 0.35);
+  color: rgb(var(--kal-fg-muted));
+  font: inherit;
+  font-size: calc(11 * var(--kal-u));
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 120ms var(--kal-ease-out), color 120ms var(--kal-ease-out), background-color 120ms var(--kal-ease-out);
+}
+.kal-agenda-inline-trigger:hover:not(:disabled) {
+  color: rgb(var(--kal-accent));
+  border-color: rgb(var(--kal-accent) / 0.65);
+  background: rgb(var(--kal-accent) / 0.06);
+}
+.kal-agenda-inline-trigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.kal-agenda-inline-new-row {
+  display: flex;
+  width: 100%;
+  padding-top: calc(2 * var(--kal-u));
+}
+.kal-agenda-inline-new {
+  width: 100%;
+  height: calc(28 * var(--kal-u));
+  padding: 0 calc(8 * var(--kal-u));
+  border: 1px solid rgb(var(--kal-accent) / 0.85);
+  border-radius: calc(6 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.96);
+  color: rgb(var(--kal-fg));
+  font: inherit;
+  font-size: calc(12 * var(--kal-u));
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--kal-accent) / 0.14);
+}
+.kal-agenda-dot {
+  flex: 0 0 auto;
+  width: max(28px, calc(28 * var(--kal-u)));
+  height: max(28px, calc(28 * var(--kal-u)));
+  margin-left: calc(-4 * var(--kal-u));
+  padding: 0; border: 0; background: transparent;
+  display: inline-grid; place-items: center;
+  border-radius: calc(6 * var(--kal-u));
+}
+.kal-agenda-dot::after {
+  content: "";
+  width: calc(6 * var(--kal-u));
+  height: calc(6 * var(--kal-u));
+  border-radius: 50%;
+  background: rgb(var(--kal-accent));
+  transition: transform 140ms var(--kal-ease-out), background-color 140ms var(--kal-ease-out), border-color 140ms var(--kal-ease-out);
+}
+.kal-agenda-dot.is-toggleable::after {
+  width: calc(12 * var(--kal-u));
+  height: calc(12 * var(--kal-u));
+  background: transparent;
+  border: 1.5px solid rgb(var(--kal-accent) / 0.65);
+}
+.kal-agenda-list li.is-done .kal-agenda-dot.is-toggleable::after {
+  background: rgb(var(--kal-done) / 0.55);
+  border-color: rgb(var(--kal-done) / 0.55);
+}
+.kal-agenda-dot.is-toggleable { cursor: pointer; }
+.kal-agenda-dot.is-toggleable:hover { background: rgb(var(--kal-accent) / .10); }
+.kal-agenda-dot.is-readonly { opacity: 0.72; cursor: default; }
+.kal-agenda-dot:focus-visible, .kal-agenda-text:focus-visible, .kal-agenda-action:focus-visible {
+  outline: 2px solid rgb(var(--kal-accent)); outline-offset: 1px;
+}
+.kal-agenda-edit-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.kal-agenda-list li:has(.kal-agenda-edit),
+.kal-agenda-list li:has(.kal-agenda-confirm) { flex-wrap: wrap; }
+.kal-agenda-list li:has(.kal-agenda-edit) .kal-agenda-edit-actions { margin-left: auto; }
+.kal-agenda-confirm-btn { min-width: 28px; min-height: 28px; }
+.kal-agenda-time {
+  flex: 0 0 auto;
+  padding-block: calc(4 * var(--kal-u));
+  line-height: calc(20 * var(--kal-u));
+  font-family: var(--kal-font-family-num);
+  font-size: calc(12 * var(--kal-u));
+  font-weight: 500;
+  color: rgb(var(--kal-accent));
+  font-variant-numeric: tabular-nums;
+}
+.kal-agenda-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: calc(28 * var(--kal-u));
+  padding-block: calc(4 * var(--kal-u));
+  line-height: calc(20 * var(--kal-u));
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.kal-agenda-text.is-editing { user-select: text; }
+.kal-agenda-edit {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  border-bottom: var(--kal-border-w) solid rgb(var(--kal-accent) / 0.75);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+  padding: calc(4 * var(--kal-u)) 0;
+  user-select: text;
+}
+/* 悬停操作按钮脱离文档流，绝不挤压正文宽度导致 3 字断行 */
+.kal-agenda-action {
+  position: absolute;
+  top: calc(5 * var(--kal-u));
+  right: calc(5 * var(--kal-u));
+  min-width: calc(24 * var(--kal-u));
+  min-height: calc(24 * var(--kal-u));
+  width: calc(24 * var(--kal-u));
+  height: calc(24 * var(--kal-u));
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgb(var(--kal-line) / 0.65);
+  border-radius: calc(5 * var(--kal-u));
+  padding: 0;
+  color: rgb(var(--kal-fg-muted));
+  background: rgb(var(--kal-surface) / 0.95);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.kal-agenda-list li:hover .kal-agenda-action,
+.kal-agenda-list li:focus-within .kal-agenda-action,
+.kal-agenda-action:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.kal-agenda-action:hover {
+  color: rgb(var(--kal-danger));
+  border-color: rgb(var(--kal-danger) / 0.45);
+}
+.kal-agenda-list li:has(.kal-agenda-confirm) .kal-agenda-postpone,
+.kal-agenda-list li:has(.kal-agenda-edit) .kal-agenda-postpone,
+.kal-agenda-list li:has(.kal-agenda-edit) .kal-agenda-action {
+  display: none;
+}
+.kal-agenda-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4 * var(--kal-u));
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.kal-agenda-confirm-btn {
+  appearance: none;
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  background: rgb(var(--kal-surface) / 0.55);
+  color: rgb(var(--kal-fg-muted));
+  border-radius: var(--kal-radius-pill);
+  font: inherit;
+  font-size: calc(10.5 * var(--kal-u));
+  padding: calc(1 * var(--kal-u)) calc(6 * var(--kal-u));
+  cursor: pointer;
+}
+.kal-agenda-confirm-btn.is-danger {
+  color: rgb(var(--kal-danger));
+  border-color: rgb(var(--kal-danger) / 0.55);
+}
+.kal-agenda-confirm-btn:focus-visible {
+  outline: var(--kal-border-w) solid rgb(var(--kal-accent));
+}
+
+/* ---- 滚动条 ---- */
+.kal-productivity {
+  flex: 0 1 auto;
+  max-height: 36%;
+  overflow: auto;
+  border-top: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  font-size: calc(11 * var(--kal-u));
+}
+.kal-tools-section { padding: calc(5 * var(--kal-u)) 0; }
+.kal-tools-section > summary,
+.kal-countdown-editor > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: rgb(var(--kal-fg-muted));
+  padding: calc(2 * var(--kal-u)) calc(2 * var(--kal-u));
+  border-radius: calc(4 * var(--kal-u));
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.kal-tools-section > summary::-webkit-details-marker,
+.kal-countdown-editor > summary::-webkit-details-marker {
+  display: none;
+}
+.kal-tools-section > summary::after,
+.kal-countdown-editor > summary::after {
+  content: "›";
+  font-size: calc(13 * var(--kal-u));
+  line-height: 1;
+  color: rgb(var(--kal-fg-dim));
+  transition: transform 150ms var(--kal-ease-out);
+}
+.kal-tools-section[open] > summary::after,
+.kal-countdown-editor[open] > summary::after {
+  transform: rotate(90deg);
+}
+.kal-tools-section > summary:hover,
+.kal-countdown-editor > summary:hover {
+  color: rgb(var(--kal-fg));
+}
+.kal-tools-section > summary { font-weight: 500; font-size: calc(11.5 * var(--kal-u)); }
+.kal-countdowns { list-style: none; padding: 0; margin: calc(6 * var(--kal-u)) 0; }
+.kal-countdown-card { display: flex; align-items: center; gap: calc(5 * var(--kal-u)); }
+.kal-countdown-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kal-countdown-days { color: rgb(var(--kal-accent)); font-size: inherit; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kal-countdown-remove { min-width: calc(22 * var(--kal-u)); padding: 0; }
+.kal-tools-empty, .kal-tools-status, .kal-note-meta, .kal-note-badge { color: rgb(var(--kal-fg-dim)); }
+.kal-tools-status { font-size: calc(10 * var(--kal-u)); margin-top: calc(5 * var(--kal-u)); overflow-wrap: anywhere; }
+.kal-tools-status.is-error { color: rgb(var(--kal-danger)); }
+#kal-countdown-form { display: flex; flex-wrap: wrap; gap: calc(5 * var(--kal-u)); padding-top: calc(5 * var(--kal-u)); }
+#kal-countdown-form input {
+  font: inherit;
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface) / .6);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: var(--kal-radius-cell);
+  padding: calc(4 * var(--kal-u));
+  min-width: 0;
+  user-select: text;
+}
+#kal-countdown-title { flex: 1 0 100%; width: 100%; }
+#kal-countdown-date { flex: 1; color-scheme: dark light; }
+.kal-note-entry { border-top: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha)); padding: calc(5 * var(--kal-u)) 0; }
+.kal-note-title { cursor: pointer; overflow-wrap: anywhere; }
+.kal-note-meta { margin: calc(4 * var(--kal-u)) 0; font-size: calc(10 * var(--kal-u)); }
+.kal-note-content { white-space: pre-wrap; user-select: text; overflow-wrap: anywhere; line-height: 1.5; max-height: calc(190 * var(--kal-u)); overflow: auto; }
+.kal-note-content button { display: block; }
+.kal-note-badge { display: none; }
+#kal-holiday-section { display: none; }
+.kal-desktop-settings { margin-top: calc(12 * var(--kal-u)); }
+.kal-desktop-settings label { display: block; margin-top: calc(10 * var(--kal-u)); }
+.kal-desktop-settings p { font-size: calc(11 * var(--kal-u)); line-height: 1.5; }
+.kal-productivity :focus-visible { outline: 1px solid rgb(var(--kal-accent)); outline-offset: 2px; }
+
+.kal-productivity::-webkit-scrollbar,
+.kal-note-content::-webkit-scrollbar,
+.kal-agenda-list::-webkit-scrollbar,
+.kal-search-list::-webkit-scrollbar,
+.kal-panel-body::-webkit-scrollbar { width: calc(6 * var(--kal-u)); }
+.kal-productivity::-webkit-scrollbar-thumb,
+.kal-note-content::-webkit-scrollbar-thumb,
+.kal-agenda-list::-webkit-scrollbar-thumb,
+.kal-search-list::-webkit-scrollbar-thumb,
+.kal-panel-body::-webkit-scrollbar-thumb {
+  background: rgb(var(--kal-fg) / 0.18);
+  border-radius: var(--kal-radius-pill);
+}
+
+/* State roles are independent from holiday decoration. */
+.kal-btn:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
+.kal-agenda-text:focus-visible { outline: 2px solid rgb(var(--kal-focus)); outline-offset: 2px; }
+.kal-agenda-confirm-btn.is-danger { background: rgb(var(--kal-danger)); color: rgb(var(--kal-danger-fg)); border-color: transparent; }
+.kal-task.is-done { color: rgb(var(--kal-done)); opacity: 1; }
+.kal-cell.is-today.is-selected { box-shadow: inset 0 0 0 2px rgb(var(--kal-today-ring)); }
+
+/* ---- 法定节假日自定义 JSON 配置（兼容 NateScarlet/holiday-cn） ---- */
+.kal-holiday-editor {
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 * var(--kal-u));
+  padding-top: calc(4 * var(--kal-u));
+}
+.kal-holiday-textarea {
+  width: 100%;
+  min-height: calc(64 * var(--kal-u));
+  max-height: calc(140 * var(--kal-u));
+  resize: vertical;
+  font-family: "Geist Mono", "Cascadia Mono", "Consolas", monospace;
+  font-size: calc(10 * var(--kal-u));
+  line-height: 1.4;
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface) / 0.55);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: var(--kal-radius-cell);
+  padding: calc(5 * var(--kal-u)) calc(6 * var(--kal-u));
+  user-select: text;
+}
+.kal-holiday-actions {
+  display: flex;
+  gap: calc(5 * var(--kal-u));
+  flex-wrap: wrap;
+}
+.kal-holiday-btn {
+  height: calc(22 * var(--kal-u));
+  padding: 0 calc(8 * var(--kal-u));
+  font-size: calc(10 * var(--kal-u));
+}
+
+/* ---- 日历导出与横向满幅打印弹层 (#kal-export-popover) ---- */
+.kal-export-popover {
+  position: absolute;
+  top: calc(52 * var(--kal-u));
+  right: var(--kal-pad);
+  width: min(calc(376 * var(--kal-u)), calc(100% - 2 * var(--kal-pad)));
+  display: flex;
+  flex-direction: column;
+  gap: calc(9 * var(--kal-u));
+  padding: calc(12 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-bg) / 0.99);
+  border: var(--kal-border-w) solid rgb(var(--kal-line) / 0.85);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  z-index: 32;
+}
+.kal-export-popover[hidden] { display: none !important; }
+.kal-export-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(6 * var(--kal-u));
+}
+.kal-export-title {
+  font-size: calc(13 * var(--kal-u));
+  font-weight: 700;
+  color: rgb(var(--kal-fg));
+}
+.kal-export-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(8 * var(--kal-u));
+  font-size: calc(11.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-export-seg {
+  display: inline-flex;
+  gap: calc(4 * var(--kal-u));
+}
+.kal-export-checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(5 * var(--kal-u)) calc(10 * var(--kal-u));
+  padding: calc(6 * var(--kal-u)) calc(8 * var(--kal-u));
+  border-radius: calc(var(--kal-radius-cell) * 0.8);
+  background: rgb(var(--kal-surface) / 0.65);
+  border: 1px solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  font-size: calc(11 * var(--kal-u));
+  color: rgb(var(--kal-fg));
+}
+.kal-export-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(5 * var(--kal-u));
+  cursor: pointer;
+}
+.kal-export-actions {
+  display: flex;
+  gap: calc(6 * var(--kal-u));
+  flex-wrap: wrap;
+}
+.kal-export-primary {
+  flex: 1 1 auto;
+  background: rgb(var(--kal-accent));
+  color: rgb(var(--kal-accent-fg));
+  border-color: transparent;
+  font-weight: 600;
+}
+.kal-export-primary:hover {
+  background: rgb(var(--kal-accent) / 0.9);
+  border-color: transparent;
+}
+.kal-export-status {
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+  min-height: calc(14 * var(--kal-u));
+  line-height: 1.35;
+}
+.kal-export-status.is-error {
+  color: rgb(var(--kal-danger));
+}
+
+/* ---- Phase 2 ~ 4：窗口拖拽/锁定、单日染色、自然语言胶囊、拖拽改期、跨日横幅与 +N 更多浮层 ---- */
+.kal-header[data-tauri-drag-region],
+.kal-spacer[data-tauri-drag-region] {
+  cursor: grab;
+}
+body.kal-window-locked .kal-header[data-tauri-drag-region],
+body.kal-window-locked .kal-spacer[data-tauri-drag-region] {
+  cursor: default;
+}
+
+/* 8 色单日背景染色 (Cell Highlight Color) */
+.kal-cell[data-bgcolor="emerald"]:not(.is-selected) {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.38);
+}
+.kal-cell[data-bgcolor="rose"]:not(.is-selected) {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.36);
+}
+.kal-cell[data-bgcolor="amber"]:not(.is-selected) {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.38);
+}
+.kal-cell[data-bgcolor="sky"]:not(.is-selected) {
+  background: rgba(14, 165, 233, 0.16);
+  border-color: rgba(14, 165, 233, 0.38);
+}
+.kal-cell[data-bgcolor="violet"]:not(.is-selected) {
+  background: rgba(139, 92, 246, 0.16);
+  border-color: rgba(139, 92, 246, 0.38);
+}
+.kal-cell[data-bgcolor="coral"]:not(.is-selected) {
+  background: rgba(249, 115, 22, 0.16);
+  border-color: rgba(249, 115, 22, 0.38);
+}
+.kal-cell[data-bgcolor="gold"]:not(.is-selected) {
+  background: rgba(234, 179, 8, 0.17);
+  border-color: rgba(234, 179, 8, 0.40);
+}
+
+.kal-cell-color-bar {
+  display: none;
+}
+
+/* 自然语言速记实时解析预览（极简文字提示，无杂乱胶囊框） */
+.kal-nlp-preview {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--kal-u));
+  flex-wrap: wrap;
+  padding: calc(1 * var(--kal-u)) calc(2 * var(--kal-u));
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-nlp-pill {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 400;
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-accent));
+}
+.kal-nlp-pill.is-prio-high {
+  color: rgb(var(--kal-fg-holiday));
+}
+
+/* 跨多日事件与高优标记保持与普通事项一致的简洁文本排版 */
+.kal-task.is-multiday {
+  font-weight: var(--kal-fw-task);
+}
+.kal-task.is-prio-high::before {
+  background: rgb(var(--kal-fg-holiday) / 0.85);
+}
+
+/* 跨日拖拽改期反馈 */
+.kal-task[data-item-id] {
+  cursor: pointer;
+}
+.kal-task.is-dragging {
+  opacity: 0.45;
+}
+.kal-cell.is-drop-target {
+  outline: 1.5px dashed rgb(var(--kal-accent));
+  outline-offset: -2px;
+  background: rgb(var(--kal-accent) / 0.10) !important;
+}
+
+/* +N 更多点击浮层 */
+.kal-task-more {
+  cursor: pointer;
+  font-weight: 400;
+  color: rgb(var(--kal-fg-muted));
+  border-radius: calc(3 * var(--kal-u));
+}
+.kal-task-more:hover {
+  color: rgb(var(--kal-accent));
+}
+.kal-day-more-popover {
+  position: absolute;
+  top: calc(56 * var(--kal-u));
+  left: calc(24 * var(--kal-u));
+  z-index: 42;
+  width: min(calc(340 * var(--kal-u)), calc(100% - 32 * var(--kal-u)));
+  max-height: calc(360 * var(--kal-u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--kal-u));
+  padding: calc(10 * var(--kal-u)) calc(12 * var(--kal-u));
+  border-radius: var(--kal-radius-cell);
+  background: rgb(var(--kal-bg) / 0.99);
+  border: 1px solid rgb(var(--kal-line) / 0.85);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+.kal-day-more-popover[hidden] {
+  display: none !important;
+}
+.kal-day-more-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: calc(12 * var(--kal-u));
+}
+.kal-day-more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--kal-u));
+}
+.kal-day-more-list li {
+  font-size: calc(11 * var(--kal-u));
+  padding: calc(4 * var(--kal-u)) calc(6 * var(--kal-u));
+  border-radius: calc(4 * var(--kal-u));
+  background: rgb(var(--kal-surface) / 0.35);
+}
+.kal-day-more-list li.is-done {
+  text-decoration: line-through;
+  color: rgb(var(--kal-fg-dim));
+}
+
+/* 右侧清单单条快捷顺延按钮（浮动悬停层，不占排版宽度）与便签操作栏 */
+.kal-agenda-postpone {
+  position: absolute;
+  top: calc(5 * var(--kal-u));
+  right: calc(32 * var(--kal-u));
+  font-size: calc(10 * var(--kal-u));
+  font-weight: 500;
+  padding: 0 calc(6 * var(--kal-u));
+  height: calc(24 * var(--kal-u));
+  border-radius: calc(5 * var(--kal-u));
+  border: 1px solid rgb(var(--kal-line) / 0.65);
+  background: rgb(var(--kal-surface) / 0.95);
+  color: rgb(var(--kal-fg-muted));
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.kal-agenda-list li:hover .kal-agenda-postpone,
+.kal-agenda-list li:focus-within .kal-agenda-postpone,
+.kal-agenda-postpone:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.kal-agenda-postpone:hover {
+  color: rgb(var(--kal-accent));
+  border-color: rgb(var(--kal-accent) / 0.5);
+}
+.kal-note-actions {
+  display: flex;
+  gap: calc(4 * var(--kal-u));
+  margin-top: calc(4 * var(--kal-u));
+}
+.kal-note-edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--kal-u));
+  margin-top: calc(5 * var(--kal-u));
+}
+
+/* ---- 顶层 @page 与 @media print：默认横向纸张 (A4 Landscape)，日历占满打印区域 ---- */
+@page {
+  size: A4 landscape;
+  margin: 6mm;
+}
+
+@media print {
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: rgb(var(--kal-bg)) !important;
+  }
+  .kal-nav,
+  .kal-meta,
+  .kal-agenda,
+  .kal-panel,
+  .kal-ym-popover,
+  .kal-search-popover,
+  .kal-export-popover {
+    display: none !important;
+  }
+  .kal-root {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    padding: 3mm !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .kal-body,
+  .kal-calendar-col,
+  .kal-grid {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+  .kal-task {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    -webkit-line-clamp: unset !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kal-cell,
+  .kal-btn,
+  .kal-root,
+  .kal-agenda,
+  .kal-agenda-list li,
+  .kal-agenda-progress-fill {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
