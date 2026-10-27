@@ -321,7 +321,7 @@ export const DEFAULT_THEME = {
   },
   layout: {
     pad: 16, padSm: 8, gap: 6, cellGap: 3,
-    agenda: "side", agendaWidth: 268,
+    agenda: "hidden", agendaWidth: 268,
     weekStart: 1, maxTasks: 4,
     showLunar: true, showWeekendColor: true, showCellCount: true,
     showHolidayBadge: true, showWeekNumber: true, showYiJi: false,
@@ -333,8 +333,8 @@ export const DEFAULT_THEME = {
 };
 
 /** 当前软件发布版本号与阶段标识 */
-export const APP_VERSION = "0.1.0";
-export const APP_STAGE_LABEL = "v0.1.0";
+export const APP_VERSION = "0.1.1";
+export const APP_STAGE_LABEL = "v0.1.1";
 
 /** 6 款内置零依赖高颜值艺术壁纸预设 */
 export const ART_BACKDROPS = [

@@ -268,7 +268,7 @@ impl Default for Layout {
             pad_sm: 8.0,
             gap: 6.0,
             cell_gap: 3.0,
-            agenda: "side".into(),
+            agenda: "hidden".into(),
             agenda_width: 268.0,
             week_start: 1,
             max_tasks: 4,

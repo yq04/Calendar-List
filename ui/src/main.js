@@ -155,8 +155,9 @@ function cacheEls() {
   for (const id of [
     "kal-month-label", "kal-year-label", "kal-lunar-year", "kal-week-badge", "kal-title-trigger",
     "kal-ym-popover", "kal-weekhead", "kal-grid",
-    "kal-agenda-date", "kal-agenda-count", "kal-undo-btn", "kal-rollover-btn",
+    "kal-agenda-date", "kal-agenda-rel-badge", "kal-agenda-count", "kal-undo-btn", "kal-rollover-btn",
     "kal-agenda-copy", "kal-agenda-ics", "kal-agenda-sub", "kal-cell-color-bar", "kal-agenda-list",
+    "kal-upcoming-section", "kal-upcoming-count", "kal-upcoming-list",
     "kal-source-tag", "kal-display-tag", "kal-app-version", "kal-agenda-add", "kal-agenda-input",
     "kal-time-toggle-btn", "kal-agenda-add-meta", "kal-agenda-time-input", "kal-agenda-date-input", "kal-agenda-prio-btn",
     "kal-nlp-preview", "kal-write-status", "kal-pending-box", "kal-agenda-inline-trigger",
@@ -165,7 +166,7 @@ function cacheEls() {
     "kal-export-btn", "kal-export-popover", "kal-export-close",
     "kal-export-orient", "kal-export-paper", "kal-export-margin",
     "kal-export-lunar", "kal-export-almanac", "kal-export-completed", "kal-export-detail",
-    "kal-export-pdf", "kal-export-md", "kal-export-ics-btn", "kal-export-import-ics", "kal-ics-file-input",
+    "kal-export-pdf", "kal-export-md", "kal-export-ics-btn", "kal-export-import-ics", "kal-export-import-db", "kal-ics-file-input",
     "kal-export-print", "kal-export-status",
     "kal-day-more-popover", "kal-day-more-title", "kal-day-more-close", "kal-day-more-list",
     "kal-refresh", "kal-lock-btn", "kal-quick-glass", "kal-privacy-btn", "kal-view-toggle",
@@ -433,7 +434,7 @@ function openCellInlineTaskEdit(taskEl, ev) {
   input.type = "text";
   input.className = "kal-cell-inline-input is-edit";
   input.value = ev.title;
-  input.setAttribute("aria-label", `直接修改 ${ev.date} 安排：${ev.title}`);
+  input.setAttribute("aria-label", `直接修改 ${ev.date} 安排：${ev.title}（清空回车可删除）`);
   bindImeGuard(input);
 
   let finished = false;
@@ -443,10 +444,44 @@ function openCellInlineTaskEdit(taskEl, ev) {
     if (input.isConnected) input.replaceWith(taskEl);
   };
 
-  const commit = async () => {
+  const commit = async (allowEmptyDelete = false) => {
     if (finished || isImeComposing(null, input)) return;
     const nextTitle = input.value.trim();
-    if (!nextTitle || nextTitle === ev.title) {
+    if (!nextTitle) {
+      if (allowEmptyDelete && caps.canDelete) {
+        finished = true;
+        input.disabled = true;
+        const expected = buildExpectedSnapshot(ev);
+        const delOutcome = await writeAction(
+          () => bridge.itemDelete(ev.id, ev.date, expected),
+          {
+            onConfirmed: () => {
+              const prevTitle = ev.title;
+              const prevTime = ev.time || "";
+              const prevDate = ev.date;
+              pushUndoAction({
+                label: `删除「${prevTitle}」`,
+                undo: () => bridge.itemCreate(prevDate, prevTitle, prevTime),
+              });
+              panel?.addLog?.("schedule", `左栏清空删除安排「${prevTitle}」(${prevDate})`);
+            },
+            onCancelled: () => {
+              finished = false;
+              if (input.isConnected) input.replaceWith(taskEl);
+            },
+          },
+        );
+        if (delOutcome !== "saved" && delOutcome !== "pending" && input.isConnected) {
+          finished = false;
+          input.disabled = false;
+          input.focus();
+        }
+        return;
+      }
+      restore();
+      return;
+    }
+    if (nextTitle === ev.title) {
       restore();
       return;
     }
@@ -494,7 +529,7 @@ function openCellInlineTaskEdit(taskEl, ev) {
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
-      commit();
+      commit(true);
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
@@ -505,7 +540,7 @@ function openCellInlineTaskEdit(taskEl, ev) {
     if (finished || isImeComposing(null, input)) return;
     const nextTitle = input.value.trim();
     if (!nextTitle || nextTitle === ev.title || state.pendingConfirm) restore();
-    else commit();
+    else commit(false);
   });
 }
 
@@ -944,7 +979,7 @@ function renderGrid(cells, byDay) {
     if (list.length) {
       const cellLimit = state.viewMode === "week"
         ? taskLimit
-        : (list.length > 3 ? Math.min(taskLimit, 2) : Math.min(taskLimit, 3));
+        : Math.min(taskLimit, 4);
       const tasks = document.createElement("div");
       tasks.className = "kal-tasks";
       list.slice(0, cellLimit).forEach((ev, idx) => {
@@ -1025,6 +1060,10 @@ function relativeDayLabel(dateObj) {
 }
 
 function renderAgendaSub(dateObj, list) {
+  const relText = relativeDayLabel(dateObj);
+  if (el["kal-agenda-rel-badge"]) {
+    el["kal-agenda-rel-badge"].textContent = relText;
+  }
   const subEl = el["kal-agenda-sub"];
   if (!subEl) return;
   subEl.replaceChildren();
@@ -1033,7 +1072,7 @@ function renderAgendaSub(dateObj, list) {
 
   const rel = document.createElement("span");
   rel.className = "kal-rel-badge";
-  rel.textContent = relativeDayLabel(dateObj);
+  rel.textContent = relText;
   row.appendChild(rel);
 
   const wkSpan = document.createElement("span");
@@ -1140,6 +1179,7 @@ async function renderAgenda(key, byDay, seqToken = agendaGuard.next()) {
       li.addEventListener("dblclick", () => openAgendaInlineEditor());
     }
     ul.appendChild(li);
+    renderUpcomingAgenda(key);
     return;
   }
   const writeAllowed = state.writeStatus.available && !state.pendingConfirm;
@@ -1235,6 +1275,77 @@ async function renderAgenda(key, byDay, seqToken = agendaGuard.next()) {
     }
     ul.appendChild(li);
     if (editDrafts.has(`${ev.date}:${ev.id}`)) beginAgendaEdit(li, txt, ev, false);
+  }
+  renderUpcomingAgenda(key);
+}
+
+function renderUpcomingAgenda(selectedKey = state.selected || toKey(new Date())) {
+  const listEl = el["kal-upcoming-list"];
+  const countEl = el["kal-upcoming-count"];
+  if (!listEl) return;
+  listEl.replaceChildren();
+
+  const byDay = state.lastByDay;
+  if (!byDay || typeof byDay.entries !== "function") {
+    if (countEl) countEl.textContent = "";
+    return;
+  }
+
+  const futureItems = [];
+  const otherMonthItems = [];
+  const sortedDates = Array.from(byDay.keys()).sort();
+  for (const dKey of sortedDates) {
+    if (dKey === selectedKey) continue;
+    const dayItems = formatTaskListForDisplay(byDay.get(dKey) || []);
+    for (const ev of dayItems) {
+      if (ev.done) continue;
+      if (dKey > selectedKey) {
+        futureItems.push({ dateKey: dKey, ev });
+      } else {
+        otherMonthItems.push({ dateKey: dKey, ev });
+      }
+    }
+  }
+
+  const combined = futureItems.length ? futureItems : otherMonthItems;
+  if (countEl) {
+    countEl.textContent = combined.length ? `${combined.length} 项待办` : "全部搞定";
+  }
+
+  if (!combined.length) {
+    const emptyLi = document.createElement("li");
+    emptyLi.className = "is-empty";
+    emptyLi.textContent = "近期暂无其他待办安排";
+    listEl.appendChild(emptyLi);
+    return;
+  }
+
+  const weekNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+  for (const { dateKey, ev } of combined.slice(0, 12)) {
+    const li = document.createElement("li");
+    li.className = "kal-upcoming-item";
+    li.dataset.date = dateKey;
+    const dt = fromKey(dateKey);
+    const rel = relativeDayLabel(dt);
+    const shortDate = dateKey.slice(5);
+    const dateBadge = document.createElement("span");
+    dateBadge.className = "kal-upcoming-date-pill";
+    dateBadge.textContent = (rel === "明天" || rel === "后天" || rel === "今天")
+      ? `${shortDate} ${rel}`
+      : `${shortDate} ${weekNames[dt.getDay()]}`;
+
+    const dec = parseTaskDecorations(ev.title);
+    const cleanTitle = (dec.isMultiDay || dec.priority || dec.tags.length)
+      ? (dec.cleanTitle || ev.title)
+      : ev.title;
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "kal-upcoming-text";
+    titleSpan.textContent = ev.time ? `${ev.time} ${cleanTitle}` : cleanTitle;
+
+    li.append(dateBadge, titleSpan);
+    li.title = `点击跳转到 ${dateKey}：${cleanTitle}`;
+    li.addEventListener("click", () => selectDay(dateKey));
+    listEl.appendChild(li);
   }
 }
 
@@ -2277,12 +2388,38 @@ async function triggerImportIcs() {
   el["kal-ics-file-input"]?.click();
 }
 
+async function triggerImportDb() {
+  if (!bridge?.calendarImportDb) {
+    setExportStatus("当前环境暂不支持导入外部 .db 数据库", true);
+    return;
+  }
+  try {
+    const path = bridge.pickImportDbFile ? await bridge.pickImportDbFile() : null;
+    if (!path) {
+      setExportStatus("已取消选择 .db 数据库文件", false);
+      return;
+    }
+    setExportStatus("正在以只读方式导入日程与便签数据…", false);
+    const res = await bridge.calendarImportDb(path);
+    const evCount = res?.imported ?? res?.importedEvents ?? 0;
+    const skipCount = res?.skipped ?? 0;
+    invalidateReads();
+    await productivity?.refresh?.();
+    await render();
+    setExportStatus(`已成功导入 ${evCount} 条日程${skipCount ? `（跳过重复 ${skipCount} 条）` : ""}`, false);
+    setWriteStatus(`已导入外部数据库：${evCount} 条日程`, false);
+    panel?.addLog?.("schedule", `从外部 .db 导入 ${evCount} 条日程`);
+  } catch (err) {
+    setExportStatus(`导入 .db 失败：${sanitizeUserMessage(err?.message || String(err))}`, true);
+  }
+}
+
 // ---------------------------------------------------------------- 主题
 
 /** 只有这几个字段会影响格子结构；其余都是纯 CSS 变量，改它们不必重绘 DOM */
 function layoutSignature(t) {
   return [
-    t.layout?.weekStart, t.layout?.maxTasks, t.layout?.agenda,
+    t.layout?.weekStart, t.layout?.maxTasks,
     t.layout?.hideCompleted, t.layout?.sortCompletedLast, t.layout?.bulletStyle,
     t.layout?.taskWrap,
   ].join("|");
@@ -2747,8 +2884,20 @@ async function boot() {
   applyTheme(DEFAULT_THEME);
 
   try {
-    const t = await bridge.themeActive();
-    if (t && t.color) applyApplied(t);
+    const [t, bootSettings] = await Promise.all([
+      bridge.themeActive().catch(() => null),
+      bridge.settingsGet ? bridge.settingsGet().catch(() => ({})) : Promise.resolve({}),
+    ]);
+    if (t && t.color) {
+      if (!bootSettings?.ui?.agendaDefaultMigratedV011 && bootSettings?.ui?.showAgendaSidebar !== true) {
+        t.layout = { ...(t.layout || {}), agenda: "hidden" };
+        bridge.settingsSet?.({ ui: { agendaDefaultMigratedV011: true, showAgendaSidebar: false } }).catch(() => {});
+        bridge.themeCommit?.(t).catch(() => {});
+      } else if (typeof bootSettings?.ui?.showAgendaSidebar === "boolean") {
+        t.layout = { ...(t.layout || {}), agenda: bootSettings.ui.showAgendaSidebar ? "side" : "hidden" };
+      }
+      applyApplied(t);
+    }
   } catch { /* 用默认 */ }
   await localFonts.refresh().catch(() => {});
 
@@ -2893,6 +3042,7 @@ function bindControls() {
   el["kal-export-md"]?.addEventListener("click", () => exportCalendarMarkdown());
   el["kal-export-ics-btn"]?.addEventListener("click", () => exportCurrentAgendaIcs(true));
   el["kal-export-import-ics"]?.addEventListener("click", () => triggerImportIcs());
+  el["kal-export-import-db"]?.addEventListener("click", () => triggerImportDb());
   el["kal-win-min"]?.addEventListener("click", () => bridge?.windowMinimize?.());
   el["kal-win-close"]?.addEventListener("click", () => bridge?.windowHideToTray?.());
   el["kal-ics-file-input"]?.addEventListener("change", async e => {

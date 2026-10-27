@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./styles/components.css" />
   <link rel="stylesheet" href="./styles/panel.css" />
 </head>
-<body>
+<body class="kal-mode-light kal-agenda-hidden">
 <div id="kal-root" class="kal-root">
   <div id="kal-backdrop" class="kal-backdrop" aria-hidden="true">
     <div class="kal-backdrop-art"></div>
@@ -25,7 +25,7 @@
         <span id="kal-year-label" class="kal-year-label"></span>
         <span id="kal-lunar-year" class="kal-lunar-year"></span>
         <span id="kal-week-badge" class="kal-week-badge" title="当前周次"></span>
-        <span id="kal-app-version" class="kal-version-pill" title="日历清单 v0.1.0">v0.1.0</span>
+        <span id="kal-app-version" class="kal-version-pill" title="日历清单 v0.1.1">v0.1.1</span>
       </div>
     </div>
     <nav class="kal-nav">
@@ -125,6 +125,7 @@
       <button id="kal-export-md" class="kal-btn" type="button">导出 Markdown</button>
       <button id="kal-export-ics-btn" class="kal-btn" type="button">导出 .ics</button>
       <button id="kal-export-import-ics" class="kal-btn kal-btn-ghost" type="button">导入 .ics</button>
+      <button id="kal-export-import-db" class="kal-btn kal-btn-ghost" type="button" title="从原版 DesktopCal 或备份 .db 文件只读导入全部安排">导入原版 .db</button>
       <button id="kal-export-print" class="kal-btn kal-btn-ghost" type="button">打印预览</button>
     </div>
     <input id="kal-ics-file-input" type="file" accept=".ics,text/calendar" hidden />
@@ -147,6 +148,7 @@
     <aside class="kal-agenda" id="kal-agenda">
       <div class="kal-agenda-head">
         <span id="kal-agenda-date" class="kal-agenda-date"></span>
+        <span id="kal-agenda-rel-badge" class="kal-rel-badge"></span>
         <div class="kal-agenda-head-right">
           <span id="kal-agenda-count" class="kal-count"></span>
           <button id="kal-undo-btn" class="kal-btn kal-btn-ghost kal-agenda-copy-btn" type="button" hidden
@@ -198,6 +200,13 @@
       <ul class="kal-agenda-list" id="kal-agenda-list"></ul>
       <button id="kal-agenda-inline-trigger" class="kal-agenda-inline-trigger" type="button"
               title="添加安排">+ 添加安排</button>
+      <section class="kal-upcoming-section" id="kal-upcoming-section" aria-label="近期安排">
+        <div class="kal-upcoming-head">
+          <span class="kal-upcoming-title">近期安排</span>
+          <span class="kal-upcoming-count" id="kal-upcoming-count"></span>
+        </div>
+        <ul class="kal-upcoming-list" id="kal-upcoming-list"></ul>
+      </section>
       <section class="kal-productivity" id="kal-productivity" aria-label="本地工具">
         <details class="kal-tools-section">
           <summary>重要日期</summary>

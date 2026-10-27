@@ -59,6 +59,8 @@ export async function createBridge(env = {}) {
         invoke("item_move", { id, fromDate, toDate, expected: expected ?? null }),
       calendarImportItems: items => invoke("calendar_import_items", { items }),
       calendarReadTextFile: path => invoke("calendar_read_text_file", { path }),
+      calendarImportDb: path => invoke("calendar_import_db", { path }),
+      appLogAppend: entry => invoke("app_log_append", { entry }),
       itemConfirm: (pendingId, accept) =>
         invoke("item_confirm", { pendingId, accept: Boolean(accept) }),
       displayInfo: () => invoke("display_info"),
@@ -118,6 +120,13 @@ export async function createBridge(env = {}) {
         const r = await window.__TAURI__?.dialog?.open?.({
           multiple: false,
           filters: [{ name: "iCalendar 日历 (.ics)", extensions: ["ics"] }],
+        });
+        return typeof r === "string" ? r : null;
+      },
+      pickImportDbFile: async () => {
+        const r = await window.__TAURI__?.dialog?.open?.({
+          multiple: false,
+          filters: [{ name: "SQLite 日历数据库 (.db/.sqlite)", extensions: ["db", "sqlite", "sqlite3"] }],
         });
         return typeof r === "string" ? r : null;
       },
@@ -324,6 +333,9 @@ export async function createBridge(env = {}) {
   mock.pickSavePath = async () => null;
   mock.pickExportPath = async () => null;
   mock.pickImportIcsFile = async () => null;
+  mock.pickImportDbFile = async () => null;
+  mock.calendarImportDb = async (path) => ({ imported: 0, skipped: 0, path });
+  mock.appLogAppend = async () => true;
   mock.calendarExportText = async (path) => path;
   mock.calendarExportPdf = async (path) => path;
   mock.pickThemeFile = async () => null;

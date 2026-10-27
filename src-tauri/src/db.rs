@@ -179,9 +179,17 @@ pub fn ensure_sandbox_db() -> Result<PathBuf, String> {
         std::fs::create_dir_all(parent).map_err(|e| format!("无法创建沙盒目录: {e}"))?;
     }
     if !sb_path.is_file() {
-        if let Some(orig) = CalendarDb::locate_readonly_source() {
-            if orig.is_file() {
-                let _ = std::fs::copy(&orig, &sb_path);
+        let legacy_sb = crate::store::legacy_appdata_dir()
+            .join("sandbox")
+            .join("kal_sandbox.db");
+        if legacy_sb != sb_path && legacy_sb.is_file() {
+            let _ = std::fs::copy(&legacy_sb, &sb_path);
+        }
+        if !sb_path.is_file() {
+            if let Some(orig) = CalendarDb::locate_readonly_source() {
+                if orig.is_file() {
+                    let _ = std::fs::copy(&orig, &sb_path);
+                }
             }
         }
     }
@@ -290,6 +298,7 @@ impl CalendarDb {
         }
         let dest = bdir.join(format!("kal_sandbox_{now_secs}.db"));
         let _ = std::fs::copy(&self.path, &dest);
+        self.sync_portable_shadow();
 
         // 保留最近 20 份备份
         if let Ok(entries) = std::fs::read_dir(&bdir) {
@@ -310,6 +319,21 @@ impl CalendarDb {
                     let _ = std::fs::remove_file(old);
                 }
             }
+        }
+    }
+
+    pub fn sync_portable_shadow(&self) {
+        if !self.is_sandbox() || !crate::store::is_portable_install_dir() || !self.path.is_file() {
+            return;
+        }
+        let legacy_sb = crate::store::legacy_appdata_dir()
+            .join("sandbox")
+            .join("kal_sandbox.db");
+        if legacy_sb != self.path {
+            if let Some(p) = legacy_sb.parent() {
+                let _ = std::fs::create_dir_all(p);
+            }
+            let _ = std::fs::copy(&self.path, &legacy_sb);
         }
     }
 
@@ -788,6 +812,8 @@ impl CalendarDb {
                 rusqlite::params![clean_title, date, start_dt, uid],
             )
             .map_err(|e| format!("保存日程事件失败: {e}"))?;
+            drop(conn);
+            self.sync_portable_shadow();
             return Ok(());
         }
 
@@ -834,6 +860,8 @@ impl CalendarDb {
             )
             .map_err(|e| format!("新建任务失败: {e}"))?;
         }
+        drop(conn);
+        self.sync_portable_shadow();
         Ok(())
     }
 
@@ -890,6 +918,8 @@ impl CalendarDb {
             rusqlite::params![next_content, row_id],
         )
         .map_err(|e| format!("保存修改失败: {e}"))?;
+        drop(conn);
+        self.sync_portable_shadow();
         Ok(())
     }
 
@@ -947,6 +977,8 @@ impl CalendarDb {
             rusqlite::params![next_content, row_id],
         )
         .map_err(|e| format!("更新完成状态失败: {e}"))?;
+        drop(conn);
+        self.sync_portable_shadow();
         Ok(())
     }
 
@@ -989,6 +1021,8 @@ impl CalendarDb {
             rusqlite::params![next_content, row_id],
         )
         .map_err(|e| format!("删除任务失败: {e}"))?;
+        drop(conn);
+        self.sync_portable_shadow();
         Ok(())
     }
 
@@ -1093,7 +1127,52 @@ impl CalendarDb {
             .map_err(|_| "便签标识无效")?;
         conn.execute("DELETE FROM note_table WHERE nt_id = ?1", [row_id])
             .map_err(|e| format!("删除便签失败: {e}"))?;
+        drop(conn);
+        self.sync_portable_shadow();
         Ok(())
+    }
+
+    /// 从任意外部 SQLite 数据库（如原版 calendar.db / dcal.db）只读导入日程与任务到当前沙盒库
+    pub fn sandbox_import_external_db(&self, external_path: &std::path::Path) -> Result<(usize, usize), String> {
+        if !self.is_sandbox() {
+            return Err("安全红线拦截：仅允许向本地沙盒库导入数据".into());
+        }
+        if !external_path.is_file() {
+            return Err(format!("所选数据库文件不存在: {}", external_path.display()));
+        }
+        let src_db = CalendarDb::open(external_path.to_path_buf())?;
+        let src_items = src_db.all_items()?;
+        let existing = self.all_items().unwrap_or_default();
+        let mut seen: std::collections::HashSet<(String, String, String)> = existing
+            .into_iter()
+            .map(|it| (it.date, it.time, it.title.trim().to_string()))
+            .collect();
+
+        let mut imported = 0usize;
+        let mut skipped = 0usize;
+        for item in src_items {
+            if item.kind == "note" {
+                continue;
+            }
+            let clean_title = item.title.trim().to_string();
+            if clean_title.is_empty() {
+                continue;
+            }
+            let key_tuple = (item.date.clone(), item.time.clone(), clean_title.clone());
+            if !seen.insert(key_tuple) {
+                skipped += 1;
+                continue;
+            }
+            let payload = if item.done && item.time.is_empty() {
+                format!("~~{clean_title}~~")
+            } else {
+                clean_title
+            };
+            self.sandbox_create(&item.date, &payload, &item.time)?;
+            imported += 1;
+        }
+        self.sync_portable_shadow();
+        Ok((imported, skipped))
     }
 
     /// 诊断报告：用于校准字段语义

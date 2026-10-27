@@ -50,7 +50,7 @@ const SECTIONS = [
     { label: "周起始", path: "layout.weekStart", type: "seg", options: [["1", "周一"], ["0", "周日"]], num: true },
     { label: "项目符号", path: "layout.bulletStyle", type: "seg", options: [["dot", "圆点"], ["number", "编号"], ["none", "无"]] },
     { label: "格内行数", path: "layout.maxTasks", type: "range", ...SIZE(1, 10, 1), fmt: v => `${v} 项` },
-    { label: "日程栏", path: "layout.agenda", type: "seg", options: [["side", "显示"], ["hidden", "隐藏"]] },
+    { label: "右侧展示栏", path: "layout.agenda", type: "seg", options: [["hidden", "隐藏（默认）"], ["side", "显示"]] },
     { label: "休/班角标", path: "layout.showHolidayBadge", type: "bool" },
     { label: "显示农历", path: "layout.showLunar", type: "bool" },
     { label: "黄历宜忌", path: "layout.showYiJi", type: "bool" },
@@ -221,8 +221,12 @@ export function createPanel({
   const isOpen = () => document.body.classList.contains("kal-panel-open");
 
   function persistLogs() {
+    const snapshot = operationLogs.slice(0, 80);
     try {
-      window.localStorage?.setItem(LOG_STORAGE_KEY, JSON.stringify(operationLogs.slice(0, 80)));
+      window.localStorage?.setItem(LOG_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch { /* ignore */ }
+    try {
+      bridge?.settingsSet?.({ operationLogs: snapshot })?.catch?.(() => {});
     } catch { /* ignore */ }
   }
 
@@ -239,8 +243,25 @@ export function createPanel({
     });
     if (operationLogs.length > 80) operationLogs.length = 80;
     persistLogs();
+    try {
+      bridge?.appLogAppend?.(`[${nowStr}] [${cat}] ${clean}`)?.catch?.(() => {});
+    } catch { /* ignore */ }
     renderLogList();
   }
+
+  // 从持久化 settings.json 继承历史操作日志（升级或切换 WebView 目录后不丢失）
+  try {
+    bridge?.settingsGet?.()?.then?.(s => {
+      const diskLogs = s?.operationLogs;
+      if (Array.isArray(diskLogs) && diskLogs.length > operationLogs.length) {
+        operationLogs = diskLogs.slice(0, 80);
+        try {
+          window.localStorage?.setItem(LOG_STORAGE_KEY, JSON.stringify(operationLogs));
+        } catch { /* ignore */ }
+        renderLogList();
+      }
+    })?.catch?.(() => {});
+  } catch { /* ignore */ }
 
   let advancedDrawer = null;
   function applyTabFilter(tab) {
@@ -339,8 +360,17 @@ export function createPanel({
       </div>
     </div>
 
-    <div class="kal-sec-title">语言、动效与强调色</div>
+    <div class="kal-sec-title">界面布局、语言与强调色</div>
     <div class="kal-card-group">
+      <div class="kal-row kal-row-rich">
+        <div class="kal-row-meta">
+          <label for="kal-agenda-sidebar-toggle">显示右侧展示栏</label>
+          <small class="kal-row-desc" id="kal-agenda-sidebar-status">默认关闭（仅保留纯日历视图，双击日历格直接记事）；开启后在右侧展示当日与近期安排</small>
+        </div>
+        <div class="kal-row-ctl kal-row-ctl-end">
+          <input type="checkbox" id="kal-agenda-sidebar-toggle" class="kal-switch" aria-label="显示右侧展示栏" />
+        </div>
+      </div>
       <div class="kal-row kal-row-rich">
         <div class="kal-row-meta">
           <label>界面语言</label>
@@ -387,6 +417,8 @@ export function createPanel({
   const dockAlphaRange = generalSec.querySelector("#kal-dock-alpha-range");
   const dockAlphaVal = generalSec.querySelector("#kal-dock-alpha-val");
   const dockFadeToggle = generalSec.querySelector("#kal-dock-fade-toggle");
+  const agendaSidebarToggle = generalSec.querySelector("#kal-agenda-sidebar-toggle");
+  const agendaSidebarStatus = generalSec.querySelector("#kal-agenda-sidebar-status");
   const langSeg = generalSec.querySelector("#kal-lang-seg");
   const motionToggle = generalSec.querySelector("#kal-reduced-motion-toggle");
   const accentWrap = generalSec.querySelector("#kal-accent-swatches");
@@ -628,6 +660,20 @@ export function createPanel({
     sync();
     const langNames = { "zh-CN": "简体中文", "zh-TW": "繁體中文", en: "English" };
     addLog("system", `切换界面语言为 ${langNames[lang] || lang}`);
+  });
+
+  agendaSidebarToggle?.addEventListener("change", async () => {
+    const showSide = Boolean(agendaSidebarToggle.checked);
+    const next = setPath(getTheme(), "layout.agenda", showSide ? "side" : "hidden");
+    onPreview(next);
+    if (typeof onCommitQuickAlpha === "function") {
+      await onCommitQuickAlpha(next);
+    }
+    try {
+      await bridge?.settingsSet?.({ ui: { showAgendaSidebar: showSide, agendaDefaultMigratedV011: true } });
+    } catch { /* ignore */ }
+    sync();
+    addLog("system", showSide ? "开启「显示右侧展示栏」" : "关闭「显示右侧展示栏」（仅保留日历区域）");
   });
 
   motionToggle.addEventListener("change", () => {
@@ -1223,10 +1269,10 @@ export function createPanel({
       <div class="kal-changelog-box" id="kal-changelog-box" hidden>
         <div class="kal-changelog-title">${APP_STAGE_LABEL} 更新亮点</div>
         <ul class="kal-changelog-list">
-          <li>支持一键固定到桌面左侧/右侧/居中，自适应多显示器尺寸与 DPI</li>
-          <li>新增 Windows 开机自启动开关，登录系统自动就绪</li>
-          <li>全新居中弹窗式设置中心，内置精选主题、质感、排版与字体预设模板</li>
-          <li>双击日历格或右侧列表即可无干扰极速直编</li>
+          <li>默认专注纯日历视图，可在设置中随时勾选「显示右侧展示栏」开启当日与近期安排侧栏</li>
+          <li>修复多条日程格内自动换行逻辑，消除无故单行「...」截断，完整呈现多项安排</li>
+          <li>精简右侧展示栏冗余按钮与底部抽屉，对齐完成圆圈与文字基线，新增「近期安排」概览</li>
+          <li>支持安装目录独立存储与跨版本覆盖升级自动继承日程、设置、主题与操作日志</li>
         </ul>
       </div>
     </div>
@@ -1560,6 +1606,15 @@ export function createPanel({
     langSeg?.querySelectorAll("[data-lang]").forEach(btn => {
       btn.classList.toggle("is-on", btn.dataset.lang === curLang);
     });
+    if (agendaSidebarToggle) {
+      const showSide = (getPath(t, "layout.agenda") || "hidden") === "side";
+      agendaSidebarToggle.checked = showSide;
+      if (agendaSidebarStatus) {
+        agendaSidebarStatus.textContent = showSide
+          ? "已开启右侧展示栏（显示当日详情、快速添加与近期安排）"
+          : "默认关闭（仅保留纯日历视图，双击日历格直接记事）；开启后在右侧展示当日与近期安排";
+      }
+    }
     if (motionToggle) {
       motionToggle.checked = getPath(t, "layout.reducedMotion") === true;
     }

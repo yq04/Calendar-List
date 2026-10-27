@@ -629,6 +629,10 @@ function buildPreloadScript(presets) {
       }
       case "calendar_import_items":
         return await mock.calendarImportItems(args?.items ?? []);
+      case "calendar_import_db":
+        return await mock.calendarImportDb(args?.path ?? "mock-external.db");
+      case "app_log_append":
+        return true;
       case "calendar_read_text_file":
         return state.mockIcsContent || "";
       case "item_confirm":
@@ -763,21 +767,30 @@ async function run() {
             appInfoCalled: calls.some(c => c.cmd === "app_info"),
             rangeEventsCount: calls.filter(c => c.cmd === "range_events").length,
             monthEventsCount: calls.filter(c => c.cmd === "month_events").length,
+            defaultAgendaHidden: document.body.classList.contains("kal-agenda-hidden"),
           };
         })()`,
         "测试1: 42格日历与日程栏渲染就绪",
       );
+      // Wait for settings panel (#kal-agenda-sidebar-toggle) to mount, then enable right sidebar for subsequent right-pane tests
+      await cdp.waitFor(`Boolean(document.getElementById("kal-agenda-sidebar-toggle"))`, "测试1: 等待设置面板开关挂载");
+      await cdp.evaluate(`(() => {
+        const toggle = document.getElementById("kal-agenda-sidebar-toggle");
+        if (toggle && !toggle.checked) toggle.click();
+      })()`);
+      await cdp.waitFor(`!document.body.classList.contains("kal-agenda-hidden")`, "测试1后开启右侧栏以执行后续右侧栏用例");
       const ok =
         bootInfo.cellCount === 42 &&
         bootInfo.isShellMode === true &&
         bootInfo.appInfoCalled === true &&
+        bootInfo.defaultAgendaHidden === true &&
         bootInfo.rangeEventsCount === 1 && bootInfo.monthEventsCount === 0 &&
         /^\d{4}-\d{2}-\d{2}$/.test(bootInfo.selectedKey);
       record(
         1,
-        "42格启动（shell模式挂载）",
+        "42格启动（shell模式挂载 + 默认仅展示左侧日历）",
         ok,
-        `cells=${bootInfo.cellCount}, shell=${bootInfo.isShellMode}, selected=${bootInfo.selectedKey}, range_events=${bootInfo.rangeEventsCount}, month_events=${bootInfo.monthEventsCount}`,
+        `cells=${bootInfo.cellCount}, shell=${bootInfo.isShellMode}, defaultAgendaHidden=${bootInfo.defaultAgendaHidden}, selected=${bootInfo.selectedKey}`,
       );
     } catch (err) {
       record(1, "42格启动（shell模式挂载）", false, err.message);
@@ -2219,21 +2232,21 @@ async function run() {
           leftSaved,
           rightSaved,
           changelogOpened,
-          updateUpToDate: Boolean(lastCheck?.upToDate && updateStatus.includes("v0.1.0")),
+          updateUpToDate: Boolean(lastCheck?.upToDate && updateStatus.includes("v0.1.1")),
         };
       })()`);
       const ok =
-        p8Res.headerVer === "v0.1.0" &&
-        p8Res.panelVer === "v0.1.0" &&
+        p8Res.headerVer === "v0.1.1" &&
+        p8Res.panelVer === "v0.1.1" &&
         p8Res.cellEditorOpened === true &&
         p8Res.rightEditorOpened === true &&
         p8Res.leftSaved === true &&
         p8Res.rightSaved === true &&
         p8Res.changelogOpened === true &&
         p8Res.updateUpToDate === true;
-      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.0版本标识与检查更新", ok, JSON.stringify(p8Res));
+      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.1版本标识与检查更新", ok, JSON.stringify(p8Res));
     } catch (err) {
-      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.0版本标识与检查更新", false, err.message);
+      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.1版本标识与检查更新", false, err.message);
     }
 
     // =========================================================================
@@ -2630,6 +2643,109 @@ async function run() {
       record("P12-audit-polish", "周次计算修复/顶栏文字与窗口控制/解锁底色标记与ICS导出/字体搜索选择器同页联动/高级微调对齐", ok, JSON.stringify(p12Res));
     } catch (err) {
       record("P12-audit-polish", "周次计算修复/顶栏文字与窗口控制/解锁底色标记与ICS导出/字体搜索选择器同页联动/高级微调对齐", false, err.message);
+    }
+
+    // =========================================================================
+    // [P13-v011-ux-and-sidebar-toggle] v0.1.1 专项验收：
+    // 1. 设置中心「显示右侧展示栏」开关（默认仅展示日历，按需开启/关闭右侧展示栏）
+    // 2. 右侧栏圆圈 (.kal-agenda-dot) 与右侧文本 (.kal-agenda-text) 首行垂直居中对齐
+    // 3. 日历单元格多任务 (.is-multi-tasks / .is-crowded) 自动换行，不再把第2/3条强制单行截断为 "..."
+    // 4. 隐藏右侧栏无用顶栏按钮组 (.kal-agenda-head-right) 与底栏抽屉 (#kal-productivity)，新增「近期安排」(#kal-upcoming-section)
+    // 5. 左格双击已有安排清空回车可直接删除（纯日历模式闭环）
+    // =========================================================================
+    try {
+      const p13Res = await cdp.evaluate(`(async () => {
+        window.__KAL_TEST__.setRequireConfirm(false);
+        // Ensure right sidebar is currently visible to test its layout & alignment
+        const sidebarToggle = document.getElementById("kal-agenda-sidebar-toggle");
+        if (sidebarToggle && !sidebarToggle.checked) {
+          sidebarToggle.click();
+          await new Promise(r => setTimeout(r, 80));
+        }
+        const sidebarVisibleWhenChecked = !document.body.classList.contains("kal-agenda-hidden") &&
+          getComputedStyle(document.getElementById("kal-agenda")).display !== "none";
+
+        // 1. Seed 3 long tasks on 2026-10-22 to verify cell auto-wrapping & circle alignment
+        await window.__KAL_TEST__.seedDirectItem("2026-10-22", "国家奖学金公示复核与材料归档提交", "");
+        await window.__KAL_TEST__.seedDirectItem("2026-10-22", "提交自强之星材料给辅导员审核", "");
+        await window.__KAL_TEST__.seedDirectItem("2026-10-22", "新生完成实验室安全准入考试与培训", "");
+        document.getElementById("kal-refresh")?.click();
+        await new Promise(r => setTimeout(r, 120));
+        document.querySelector('.kal-cell[data-key="2026-10-22"]')?.click();
+        await new Promise(r => setTimeout(r, 80));
+
+        // Check Issue 2: 2nd and 3rd tasks inside .kal-cell.is-multi-tasks.is-crowded allow wrapping (pre-wrap)
+        const cell22 = document.querySelector('.kal-cell[data-key="2026-10-22"]');
+        const cellTasks = Array.from(cell22?.querySelectorAll(".kal-task") || []);
+        const allTasksWrap = cellTasks.length >= 3 && cellTasks.every(t => getComputedStyle(t).whiteSpace === "pre-wrap");
+
+        // Check Issue 1: .kal-agenda-dot and .kal-agenda-text first-line vertical center alignment
+        const firstLi = document.querySelector("#kal-agenda-list li:not(.is-empty)");
+        const dotEl = firstLi?.querySelector(".kal-agenda-dot");
+        const txtEl = firstLi?.querySelector(".kal-agenda-text");
+        const dotRect = dotEl?.getBoundingClientRect();
+        const txtRect = txtEl?.getBoundingClientRect();
+        const txtLineH = parseFloat(getComputedStyle(txtEl).lineHeight) || 20;
+        const dotCenterY = dotRect ? (dotRect.top + dotRect.height / 2) : 0;
+        const txtFirstLineCenterY = txtRect ? (txtRect.top + txtLineH / 2) : 999;
+        const circleAligned = Math.abs(dotCenterY - txtFirstLineCenterY) <= 2.5;
+
+        // Check Issue 3 & 4: unused header buttons & bottom drawers hidden, upcoming section rendered
+        const headRightHidden = getComputedStyle(document.querySelector(".kal-agenda-head-right")).display === "none";
+        const productivityHidden = getComputedStyle(document.getElementById("kal-productivity")).display === "none";
+        const upcomingVisible = getComputedStyle(document.getElementById("kal-upcoming-section")).display !== "none";
+        const upcomingItemCount = document.querySelectorAll("#kal-upcoming-list li").length;
+        const relBadgeText = document.getElementById("kal-agenda-rel-badge")?.textContent?.trim() || "";
+
+        // Check Supplemental Requirement: toggle sidebar off -> calendar-only mode
+        sidebarToggle?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const sidebarHiddenWhenUnchecked = document.body.classList.contains("kal-agenda-hidden") &&
+          getComputedStyle(document.getElementById("kal-agenda")).display === "none";
+
+        // Check in-cell empty Enter delete while in calendar-only mode
+        const liveCell22 = document.querySelector('.kal-cell[data-key="2026-10-22"]');
+        const targetTaskEl = Array.from(liveCell22?.querySelectorAll(".kal-task") || []).find(n => n.textContent === "国家奖学金公示复核与材料归档提交");
+        targetTaskEl?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        const editInput = liveCell22?.querySelector(".kal-cell-inline-input.is-edit");
+        let deletedViaEmptyEnter = false;
+        if (editInput) {
+          editInput.value = "";
+          editInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+          await new Promise(r => setTimeout(r, 140));
+          const remaining = Array.from(document.querySelectorAll('.kal-cell[data-key="2026-10-22"] .kal-task')).map(n => n.textContent);
+          deletedViaEmptyEnter = !remaining.includes("国家奖学金公示复核与材料归档提交");
+        }
+
+        window.__KAL_TEST__.setRequireConfirm(true);
+        return {
+          sidebarVisibleWhenChecked,
+          sidebarHiddenWhenUnchecked,
+          allTasksWrap,
+          circleAligned,
+          dotCenterDiff: Math.abs(dotCenterY - txtFirstLineCenterY),
+          headRightHidden,
+          productivityHidden,
+          upcomingVisible,
+          upcomingItemCount,
+          hasRelBadge: relBadgeText.length > 0,
+          deletedViaEmptyEnter,
+        };
+      })()`);
+      const ok =
+        p13Res.sidebarVisibleWhenChecked === true &&
+        p13Res.sidebarHiddenWhenUnchecked === true &&
+        p13Res.allTasksWrap === true &&
+        p13Res.circleAligned === true &&
+        p13Res.headRightHidden === true &&
+        p13Res.productivityHidden === true &&
+        p13Res.upcomingVisible === true &&
+        p13Res.upcomingItemCount >= 1 &&
+        p13Res.hasRelBadge === true &&
+        p13Res.deletedViaEmptyEnter === true;
+      record("P13-v011-ux-and-sidebar-toggle", "默认仅日历与右侧栏开关/圆圈与文字垂直对齐/多任务自动换行/精简顶底栏与近期安排/左格清空回车删除", ok, JSON.stringify(p13Res));
+    } catch (err) {
+      record("P13-v011-ux-and-sidebar-toggle", "默认仅日历与右侧栏开关/圆圈与文字垂直对齐/多任务自动换行/精简顶底栏与近期安排/左格清空回车删除", false, err.message);
     }
 
     // 全程调用日志脱敏二次核对

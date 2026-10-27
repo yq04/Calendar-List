@@ -76,7 +76,7 @@
     "padSm": 8,
     "gap": 6,
     "cellGap": 3,
-    "agenda": "side",
+    "agenda": "hidden",
     "agendaWidth": 268,
     "weekStart": 1,
     "maxTasks": 4,

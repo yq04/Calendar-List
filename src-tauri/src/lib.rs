@@ -799,6 +799,46 @@ async fn calendar_read_text_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn calendar_import_db(path: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let pb = std::path::PathBuf::from(&path);
+        let ext = pb
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_ascii_lowercase())
+            .unwrap_or_default();
+        if ext != "db" && ext != "sqlite" && ext != "sqlite3" {
+            return Err("仅支持导入 .db / .sqlite 数据库文件".into());
+        }
+        store::reject_link(&pb)?;
+        let meta = std::fs::metadata(&pb).map_err(|e| format!("无法读取数据库文件信息: {e}"))?;
+        if meta.len() > 64 * 1024 * 1024 {
+            return Err("数据库文件过大（超过 64 MB）".into());
+        }
+        let target_db = db::open_default()?;
+        let (imported, skipped) = target_db.sandbox_import_external_db(&pb)?;
+        let _ = store::append_log_line(&format!(
+            "[import_db] path={} imported={} skipped={}",
+            pb.display(),
+            imported,
+            skipped
+        ));
+        Ok(serde_json::json!({
+            "imported": imported,
+            "skipped": skipped,
+            "path": pb.display().to_string(),
+        }))
+    })
+    .await
+    .map_err(|_| "导入数据库任务未能完成".to_string())?
+}
+
+#[tauri::command]
+fn app_log_append(entry: String) -> Result<(), String> {
+    store::append_log_line(&entry)
+}
+
+#[tauri::command]
 async fn calendar_export_pdf(path: String, html: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let dest = check_safe_export_dest(&path, &["pdf"])?;
@@ -1126,6 +1166,17 @@ fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 
 pub fn run() {
     let _ = store::ensure_dirs();
+    if store::is_portable_install_dir() && std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").is_none() {
+        let wv2_dir = store::app_dir().join("webview2");
+        let _ = std::fs::create_dir_all(&wv2_dir);
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &wv2_dir);
+    }
+    let _ = store::append_log_line(&format!(
+        "[startup] Kal v{} data_dir={} portable={}",
+        env!("CARGO_PKG_VERSION"),
+        store::app_dir().display(),
+        store::is_portable_install_dir()
+    ));
     let context = tauri::generate_context!();
     // 仅 debug 构建接受调试端口，无需临时改配置，也不会进入 release 成品。
     #[cfg(debug_assertions)]
@@ -1162,6 +1213,8 @@ pub fn run() {
             item_move,
             calendar_import_items,
             calendar_read_text_file,
+            calendar_import_db,
+            app_log_append,
             note_save,
             note_delete,
             search_events,

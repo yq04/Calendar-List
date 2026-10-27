@@ -7,15 +7,15 @@
 **轻量、温润、像壁纸一样自然融入桌面的 Windows 嵌入式日历与待办清单**  
 *A Lightweight, Wallpaper-Fused Desktop Calendar & Todo List for Windows — Powered by Rust + Tauri v2*
 
-[![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-2649A0?style=flat-square)](https://github.com/yq04/Calendar-List/releases/tag/v0.1.0)
+[![Release v0.1.1](https://img.shields.io/badge/release-v0.1.1-2649A0?style=flat-square)](https://github.com/yq04/Calendar-List/releases/tag/v0.1.1)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078d4?style=flat-square)](https://github.com/yq04/Calendar-List/releases)
-[![Installer Size](https://img.shields.io/badge/installer-2.25%20MB-10b981?style=flat-square)](https://github.com/yq04/Calendar-List/releases/download/v0.1.0/CalendarList_0.1.0_x64-setup.exe)
+[![Installer Size](https://img.shields.io/badge/installer-2.27%20MB-10b981?style=flat-square)](https://github.com/yq04/Calendar-List/releases/download/v0.1.1/CalendarList_0.1.1_x64-setup.exe)
 [![Tech Stack](https://img.shields.io/badge/stack-Rust%20%2B%20Tauri%20v2-dea584?style=flat-square)](src-tauri/Cargo.toml)
 [![Frontend](https://img.shields.io/badge/frontend-Zero--Bundle%20ESM-0ea5e9?style=flat-square)](ui/src/main.js)
-[![Tests](https://img.shields.io/badge/tests-132%20unit%20%7C%2042%20E2E%20%7C%2029%20Rust-16a34a?style=flat-square)](tools/ui-check.mjs)
+[![Tests](https://img.shields.io/badge/tests-132%20unit%20%7C%2043%20E2E%20%7C%2029%20Rust-16a34a?style=flat-square)](tools/ui-check.mjs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-64748b?style=flat-square)](LICENSE)
 
-[**⬇️ 下载 Windows x64 安装包 (v0.1.0 · 2.25 MB)**](https://github.com/yq04/Calendar-List/releases/download/v0.1.0/CalendarList_0.1.0_x64-setup.exe) · [**📋 v0.1.0 发行说明**](docs/RELEASE_NOTES_0.1.0.md) · [**🎨 主题与色板说明**](docs/theme-presets.md) · [**⚡ 性能基线报告**](docs/performance-baseline.md)
+[**⬇️ 下载 Windows x64 安装包 (v0.1.1 · 2.27 MB)**](https://github.com/yq04/Calendar-List/releases/download/v0.1.1/CalendarList_0.1.1_x64-setup.exe) · [**📋 v0.1.1 发行说明**](docs/RELEASE_NOTES_0.1.1.md) · [**🎨 主题与色板说明**](docs/theme-presets.md) · [**⚡ 性能基线报告**](docs/performance-baseline.md)
 
 </div>
 
@@ -109,15 +109,15 @@
 
 ## 📦 下载与安装
 
-前往 [**GitHub Releases (`v0.1.0`)**](https://github.com/yq04/Calendar-List/releases/tag/v0.1.0) 下载最新 Windows x64 安装包：
+前往 [**GitHub Releases (`v0.1.1`)**](https://github.com/yq04/Calendar-List/releases/tag/v0.1.1) 下载最新 Windows x64 安装包：
 
-- **安装包文件**：[`CalendarList_0.1.0_x64-setup.exe`](https://github.com/yq04/Calendar-List/releases/download/v0.1.0/CalendarList_0.1.0_x64-setup.exe)
-- **安装包大小**：`2,364,032` 字节（约 `2.25 MB`）
-- **SHA-256 校验值**：`ce76e15d91e000c37cea43ab315050824f78b91ca0e6a81888d6d8c17738ad4f`
+- **安装包文件**：[`CalendarList_0.1.1_x64-setup.exe`](https://github.com/yq04/Calendar-List/releases/download/v0.1.1/CalendarList_0.1.1_x64-setup.exe)
+- **安装包大小**：`2,382,925` 字节（约 `2.27 MB`）
+- **SHA-256 校验值**：`74343e78d8b377801b47d7bbda2dcd3b07000d164baaacae96279e7b846ae907`
 - **系统要求**：Windows 10 / Windows 11 (x64)，内置 WebView2 Runtime（Windows 11 及现代 Windows 10 已默认自带）。
-- **静默或自定义路径安装**：双击安装包即可按向导安装，或通过 PowerShell 指定安装目录（例如部署至 `D:\1_app\CalendarList`）：
+- **覆盖升级与就地数据继承**：双击安装包点击「下一步」即可直接覆盖升级，默认自动保留并继承全部日程、设置、主题与日志（存储于安装目录下的 `data/` 文件夹，不占用 C 盘）；或通过 PowerShell 指定安装目录（例如部署至 `D:\1_app\CalendarList`）：
   ```powershell
-  Start-Process -FilePath .\CalendarList_0.1.0_x64-setup.exe -ArgumentList "/S /D=D:\1_app\CalendarList" -Wait
+  Start-Process -FilePath .\CalendarList_0.1.1_x64-setup.exe -ArgumentList "/S /D=D:\1_app\CalendarList" -Wait
   ```
 
 ---

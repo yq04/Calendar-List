@@ -1,6 +1,6 @@
 [package]
 name = "kal-shell"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Kal 桌历 —— 嵌入式桌面日历清单"
 authors = ["YG"]
