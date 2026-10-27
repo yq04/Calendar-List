@@ -218,14 +218,22 @@ export function applyTheme(theme, opt = {}) {
 
   // 文字护航阴影：在透明底或复杂壁纸上提供自适应对比度光晕
   const ts = Number(getPath(theme, "shape.textShadow") ?? 0);
+  const bgAlpha = Number(getPath(theme, "color.bgAlpha") ?? DEFAULT_THEME.color.bgAlpha);
   if (!Number.isFinite(ts) || ts <= 0) {
     root.style.setProperty("--kal-text-shadow", "none");
   } else {
     const isLight = getPath(theme, "mode") === "light";
     const c = isLight ? "255, 255, 255" : "0, 0, 0";
-    const a1 = Math.min(0.95, ts * 0.88).toFixed(2);
-    const a2 = Math.min(0.85, ts * 0.58).toFixed(2);
-    root.style.setProperty("--kal-text-shadow", `0 1px 3px rgba(${c}, ${a1}), 0 0 10px rgba(${c}, ${a2})`);
+    const a1 = Math.min(0.98, ts * 0.92).toFixed(2);
+    const a2 = Math.min(0.90, ts * 0.65).toFixed(2);
+    if (Number.isFinite(bgAlpha) && bgAlpha <= 0.18) {
+      root.style.setProperty(
+        "--kal-text-shadow",
+        `0 0 2px rgba(${c}, ${a1}), 0 1px 4px rgba(${c}, ${a1}), 0 0 12px rgba(${c}, ${a2})`
+      );
+    } else {
+      root.style.setProperty("--kal-text-shadow", `0 1px 3px rgba(${c}, ${a1}), 0 0 10px rgba(${c}, ${a2})`);
+    }
   }
 
   // 内置艺术背景预设标记
@@ -341,6 +349,28 @@ export const ART_BACKDROPS = [
 /** 6 组一键视觉与透明质感配方（不破坏用户配色色相、字体与日程数据） */
 export const STYLE_RECIPES = [
   {
+    id: "paper",
+    name: "温润实底（默认）",
+    desc: "100%不透明纯净纸感，无模糊零干扰",
+    patch: {
+      "color.bgAlpha": 1,
+      "color.surfaceAlpha": 1,
+      "color.borderAlpha": 1,
+      "color.lineAlpha": 1,
+      "shape.cellAlpha": 1,
+      "shape.blur": 0,
+      "shape.shadow": false,
+      "shape.shadowStrength": 0,
+      "shape.radius": 18,
+      "shape.radiusCell": 10,
+      "shape.borderWidth": 1,
+      "shape.textShadow": 0,
+      "shape.gridStyle": "cards",
+      "layout.cellGap": 3,
+      "backdrop.mode": "none",
+    },
+  },
+  {
     id: "transparent",
     name: "纯透悬浮",
     desc: "0%全透明底穿透桌面，开启文字护航光晕",
@@ -399,24 +429,6 @@ export const STYLE_RECIPES = [
     },
   },
   {
-    id: "paper",
-    name: "温润实底",
-    desc: "100%不透明纯净纸感，无模糊零干扰",
-    patch: {
-      "color.bgAlpha": 1,
-      "color.surfaceAlpha": 1,
-      "color.borderAlpha": 0.45,
-      "color.lineAlpha": 0.35,
-      "shape.cellAlpha": 0.72,
-      "shape.blur": 0,
-      "shape.shadow": false,
-      "shape.borderWidth": 1,
-      "shape.textShadow": 0,
-      "shape.gridStyle": "cards",
-      "backdrop.mode": "none",
-    },
-  },
-  {
     id: "grid",
     name: "经典网格",
     desc: "无缝连线表格日历，紧凑清晰",
@@ -450,7 +462,7 @@ export const STYLE_RECIPES = [
 export const FONT_PRESETS = [
   {
     id: "default-ui",
-    name: "现代雅黑",
+    name: "现代雅黑（默认）",
     desc: "默认无衬线，清晰均衡",
     familyUi: DEFAULT_THEME.type.familyUi,
     familyNum: DEFAULT_THEME.type.familyNum,
@@ -556,24 +568,116 @@ export const CONTENT_PRESETS = [
   },
 ];
 
-/** 应用一键内容排版预设，返回新主题对象 */
+const CONTENT_RESET_PATHS = [
+  "layout.taskWrap",
+  "layout.maxTasks",
+  "layout.bulletStyle",
+  "type.size.day",
+  "type.size.sub",
+  "type.size.task",
+  "type.lineHeight.normal",
+];
+
+/** 应用一键内容排版预设，返回新主题对象（先还原排版基准值再应用预设，避免跨预设残留） */
 export function applyContentPreset(theme, presetId) {
   const preset = CONTENT_PRESETS.find(p => p.id === presetId);
   if (!preset) return theme;
   let next = structuredClone(theme);
+  for (const path of CONTENT_RESET_PATHS) {
+    next = setPath(next, path, getPath(DEFAULT_THEME, path));
+  }
   for (const [path, val] of Object.entries(preset.patch)) {
     next = setPath(next, path, val);
   }
   return next;
 }
 
-/** 应用一键风格配方，返回新主题对象 */
+const STYLE_RECIPE_RESET_PATHS = [
+  "color.bgAlpha",
+  "color.surfaceAlpha",
+  "color.borderAlpha",
+  "color.lineAlpha",
+  "shape.cellAlpha",
+  "shape.blur",
+  "shape.shadow",
+  "shape.shadowStrength",
+  "shape.radius",
+  "shape.radiusCell",
+  "shape.borderWidth",
+  "shape.textShadow",
+  "shape.gridStyle",
+  "layout.cellGap",
+  "backdrop.mode",
+  "backdrop.opacity",
+  "backdrop.blur",
+  "backdrop.vignette",
+];
+
+/** 应用一键风格配方，返回新主题对象（先重置质感相关字段到默认基准，再写入配方补丁，确保任意切换可完全还原） */
 export function applyStyleRecipe(theme, recipeId) {
   const recipe = STYLE_RECIPES.find(r => r.id === recipeId);
   if (!recipe) return theme;
   let next = structuredClone(theme);
+  for (const path of STYLE_RECIPE_RESET_PATHS) {
+    next = setPath(next, path, getPath(DEFAULT_THEME, path));
+  }
   for (const [path, val] of Object.entries(recipe.patch)) {
     next = setPath(next, path, val);
+  }
+  return next;
+}
+
+/** 应用精选字体预设，支持一键回到「现代雅黑（默认）」 */
+export function applyFontPreset(theme, presetId) {
+  const fp = FONT_PRESETS.find(f => f.id === presetId) || FONT_PRESETS[0];
+  let next = structuredClone(theme);
+  next = setPath(next, "type.familyUi", fp.familyUi);
+  next = setPath(next, "type.familyNum", fp.familyNum);
+  next = setPath(next, "type.italic", Boolean(fp.italic));
+  if (fp.id === "default-ui") {
+    next = setPath(next, "type.stretch", DEFAULT_THEME.type.stretch);
+    next = setPath(next, "type.weight", structuredClone(DEFAULT_THEME.type.weight));
+  }
+  return next;
+}
+
+/**
+ * 调节常驻桌面壁纸融合透明度（0 = 全透壁纸贴合，1 = 100% 温润实底），
+ * 鼠标移入移出保持恒定透明度，不会忽明忽暗。
+ */
+export function applySteadyWallAlpha(theme, rawAlpha) {
+  const alpha = Math.max(0, Math.min(1, Number(rawAlpha) || 0));
+  let next = structuredClone(theme);
+  if (alpha >= 0.98) {
+    next = setPath(next, "color.bgAlpha", 1);
+    next = setPath(next, "color.surfaceAlpha", 1);
+    next = setPath(next, "color.borderAlpha", 1);
+    next = setPath(next, "color.lineAlpha", 1);
+    next = setPath(next, "shape.cellAlpha", 1);
+    next = setPath(next, "shape.blur", 0);
+    next = setPath(next, "shape.shadow", false);
+    next = setPath(next, "shape.shadowStrength", 0);
+    next = setPath(next, "shape.borderWidth", 1);
+    next = setPath(next, "shape.textShadow", 0);
+  } else if (alpha <= 0.03) {
+    next = setPath(next, "color.bgAlpha", 0);
+    next = setPath(next, "color.surfaceAlpha", 0.14);
+    next = setPath(next, "color.borderAlpha", 0.08);
+    next = setPath(next, "color.lineAlpha", 0.12);
+    next = setPath(next, "shape.cellAlpha", 0.06);
+    next = setPath(next, "shape.blur", 0);
+    next = setPath(next, "shape.shadow", false);
+    next = setPath(next, "shape.borderWidth", 0);
+    next = setPath(next, "shape.textShadow", 0.68);
+  } else {
+    const a = Number(alpha.toFixed(2));
+    next = setPath(next, "color.bgAlpha", a);
+    next = setPath(next, "color.surfaceAlpha", Number(Math.max(0.22, Math.min(1, a * 0.92)).toFixed(2)));
+    next = setPath(next, "color.borderAlpha", Number(Math.max(0.14, Math.min(1, a * 0.65)).toFixed(2)));
+    next = setPath(next, "color.lineAlpha", Number(Math.max(0.12, Math.min(1, a * 0.55)).toFixed(2)));
+    next = setPath(next, "shape.cellAlpha", Number(Math.max(0.18, Math.min(1, a * 0.84)).toFixed(2)));
+    next = setPath(next, "shape.borderWidth", 1);
+    next = setPath(next, "shape.textShadow", a < 0.55 ? 0.42 : (a < 0.82 ? 0.18 : 0));
   }
   return next;
 }

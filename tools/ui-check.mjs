@@ -385,6 +385,22 @@ function buildPreloadScript(presets) {
       case "autostart_set":
         state.autostartEnabled = Boolean(args?.enabled);
         return { enabled: state.autostartEnabled };
+      case "display_info":
+        return {
+          ppiKnown: true,
+          pxW: 1920,
+          pxH: 1080,
+          diagonalIn: 24.0,
+          dpi: 96,
+          dpiScale: 1,
+          monitor: "Kal Test Monitor",
+          mmW: 531,
+          mmH: 299,
+          ppi: 91.8,
+          kalScale: 1,
+          orientation: "landscape",
+          isPrimary: true,
+        };
       case "desktop_dock_status":
         return state.dockState || {
           docked: false,
@@ -392,15 +408,35 @@ function buildPreloadScript(presets) {
           monitor: "",
           widthRatio: 0.64,
           heightRatio: 0.94,
-          monitors: [{
-            monitor: "Kal Test Monitor",
-            pxW: 1920,
-            pxH: 1080,
-            diagonalIn: 24.0,
-            dpiScale: 1,
-            ppiKnown: true,
-            work: [0, 0, 1920, 1040],
-          }],
+          idleFade: false,
+          monitors: [
+            {
+              monitor: "Kal Test Monitor",
+              pxW: 1920,
+              pxH: 1080,
+              diagonalIn: 24.0,
+              dpi: 96,
+              dpiScale: 1,
+              kalScale: 1,
+              ppiKnown: true,
+              orientation: "landscape",
+              isPrimary: true,
+              work: [0, 0, 1920, 1040],
+            },
+            {
+              monitor: "Kal Portrait 27",
+              pxW: 1440,
+              pxH: 2560,
+              diagonalIn: 27.0,
+              dpi: 96,
+              dpiScale: 1,
+              kalScale: 1.13,
+              ppiKnown: true,
+              orientation: "portrait",
+              isPrimary: false,
+              work: [1920, 0, 3360, 2520],
+            },
+          ],
         };
       case "desktop_apply_dock": {
         const opts = args?.opts || args || {};
@@ -410,15 +446,35 @@ function buildPreloadScript(presets) {
           monitor: opts.monitor || "",
           widthRatio: opts.widthRatio ?? 0.64,
           heightRatio: opts.heightRatio ?? 0.94,
-          monitors: [{
-            monitor: "Kal Test Monitor",
-            pxW: 1920,
-            pxH: 1080,
-            diagonalIn: 24.0,
-            dpiScale: 1,
-            ppiKnown: true,
-            work: [0, 0, 1920, 1040],
-          }],
+          idleFade: Boolean(opts.idleFade),
+          monitors: [
+            {
+              monitor: "Kal Test Monitor",
+              pxW: 1920,
+              pxH: 1080,
+              diagonalIn: 24.0,
+              dpi: 96,
+              dpiScale: 1,
+              kalScale: 1,
+              ppiKnown: true,
+              orientation: "landscape",
+              isPrimary: true,
+              work: [0, 0, 1920, 1040],
+            },
+            {
+              monitor: "Kal Portrait 27",
+              pxW: 1440,
+              pxH: 2560,
+              diagonalIn: 27.0,
+              dpi: 96,
+              dpiScale: 1,
+              kalScale: 1.13,
+              ppiKnown: true,
+              orientation: "portrait",
+              isPrimary: false,
+              work: [1920, 0, 3360, 2520],
+            },
+          ],
         };
         return state.dockState;
       }
@@ -1687,7 +1743,7 @@ async function run() {
         customRes.lunarYear.includes("年") &&
         customRes.alphaTransparent === "0" &&
         customRes.hasTextShadow === true &&
-        customRes.alphaRestored === "0.5" &&
+        customRes.alphaRestored === "1" &&
         customRes.ymOpen === true &&
         customRes.ymClosedAfterPick === true &&
         customRes.monthLabelAfterPick === "5 月" &&
@@ -2340,7 +2396,7 @@ async function run() {
       })()`);
       const ok =
         p10Res.hasTwoColumn === true &&
-        p10Res.tabSvgCount === 7 &&
+        p10Res.tabSvgCount === 6 &&
         p10Res.dirtyHiddenOnOpen === true &&
         p10Res.recipeIsOn === true &&
         p10Res.dirtyShownAfterPreview === true &&
@@ -2356,6 +2412,224 @@ async function run() {
       record("P10-ux-and-visual-polish", "双栏设置弹窗/预设高亮同步/待保存提示/闲置半透减淡/今日胶囊与键盘周向选日", ok, JSON.stringify(p10Res));
     } catch (err) {
       record("P10-ux-and-visual-polish", "双栏设置弹窗/预设高亮同步/待保存提示/闲置半透减淡/今日胶囊与键盘周向选日", false, err.message);
+    }
+
+    // =========================================================================
+    // [P11-restore-defaults-quickglass-wallpaper-monitors]
+    // 1. 预设主题/窗口质感/排版/字体/背景壁纸/高级微调均可一键或二次点击还原默认状态
+    // 2. 顶栏「透明底」按钮再次点击精确还原最初实底状态
+    // 3. 壁纸式常驻背景透明度（不随鼠标移出变透明）与闲置半透默认关闭
+    // 4. 移除「全部设置」分类标签，按需直接点击 6 大分类
+    // 5. 横竖屏多显示器尺寸/方向/分辨率适配与竖屏上下半区固定预设
+    // =========================================================================
+    try {
+      const p11Res = await cdp.evaluate(`(async () => {
+        // 1. Ensure factory default state first
+        document.getElementById("kal-settings")?.click();
+        await new Promise(r => setTimeout(r, 60));
+        const noAllTab = document.querySelector('.kal-panel-tab[data-tab="all"]') === null;
+        const defaultTabIsGeneral = document.querySelector('.kal-panel-tab.is-on')?.dataset?.tab === "general";
+
+        document.querySelector('.kal-panel [data-act="factory-reset"]')?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const initialAlpha = getComputedStyle(document.documentElement).getPropertyValue("--kal-bg-alpha").trim();
+
+        // 2. Test Quick Glass button (#kal-quick-glass): click once -> 0, click again -> restores initial 1!
+        document.querySelector('.kal-panel [data-act="close"]')?.click();
+        const qgBtn = document.getElementById("kal-quick-glass");
+        qgBtn?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const qgAlphaOn = getComputedStyle(document.documentElement).getPropertyValue("--kal-bg-alpha").trim();
+        const qgActive = Boolean(qgBtn?.classList.contains("is-active"));
+        qgBtn?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const qgAlphaRestored = getComputedStyle(document.documentElement).getPropertyValue("--kal-bg-alpha").trim();
+        const qgRestoredInactive = !qgBtn?.classList.contains("is-active");
+
+        // 3. Test each section's restore-to-default in Settings
+        document.getElementById("kal-settings")?.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        // 3a. Style recipe: click frosted -> click frosted again (or reset-sec="recipe") -> restores paper default
+        document.querySelector('.kal-panel-tab[data-tab="style"]')?.click();
+        const frostedCard = document.querySelector('#kal-recipe-grid [data-recipe-id="frosted"]');
+        const paperCard = document.querySelector('#kal-recipe-grid [data-recipe-id="paper"]');
+        frostedCard?.click();
+        const frostedOn = Boolean(frostedCard?.classList.contains("is-on"));
+        frostedCard?.click(); // clicking active card toggles back to default paper!
+        const paperRestoredByToggle = Boolean(paperCard?.classList.contains("is-on"));
+
+        // 3b. Content preset: click compact-single -> click section reset -> restores standard-wrap
+        document.querySelector('.kal-panel-tab[data-tab="type"]')?.click();
+        const compactCard = document.querySelector('#kal-content-preset-grid [data-content-preset="compact-single"]');
+        const stdCard = document.querySelector('#kal-content-preset-grid [data-content-preset="standard-wrap"]');
+        compactCard?.click();
+        document.querySelector('[data-reset-sec="content"]')?.click();
+        const contentRestored = Boolean(stdCard?.classList.contains("is-on"));
+
+        // 3c. Font preset: click geek-mono -> click section reset -> restores default-ui
+        const monoChip = document.querySelector('[data-font-preset="geek-mono"]');
+        const defFontChip = document.querySelector('[data-font-preset="default-ui"]');
+        monoChip?.click();
+        document.querySelector('[data-reset-sec="font"]')?.click();
+        const fontRestored = Boolean(defFontChip?.classList.contains("is-on"));
+
+        // 3d. Art backdrop: click aurora -> click aurora again -> restores clear-bg ("none")
+        document.querySelector('.kal-panel-tab[data-tab="backdrop"]')?.click();
+        const auroraCard = document.querySelector('#kal-art-grid [data-art-id="aurora"]');
+        const clearBgChip = document.querySelector('[data-wp="clear-bg"]');
+        auroraCard?.click();
+        const auroraOn = document.body.classList.contains("kal-has-backdrop");
+        auroraCard?.click();
+        const backdropRestored = !document.body.classList.contains("kal-has-backdrop") && Boolean(clearBgChip?.classList.contains("is-on"));
+
+        // 4. Test Wallpaper Steady Transparency (#kal-dock-alpha-seg) & idleFade default off
+        document.querySelector('.kal-panel-tab[data-tab="general"]')?.click();
+        const idleFadeDefaultOff = !document.body.classList.contains("kal-dock-idle-fade");
+        const alpha65Btn = document.querySelector('#kal-dock-alpha-seg [data-wall-alpha="0.65"]');
+        alpha65Btn?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const steadyAlpha65 = getComputedStyle(document.documentElement).getPropertyValue("--kal-bg-alpha").trim();
+        const alpha100Btn = document.querySelector('#kal-dock-alpha-seg [data-wall-alpha="1"]');
+        alpha100Btn?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const steadyAlpha100 = getComputedStyle(document.documentElement).getPropertyValue("--kal-bg-alpha").trim();
+
+        // 5. Test Monitor Orientation & Multi-Monitor options + top-desktop portrait dock preset
+        const monSelect = document.getElementById("kal-dock-monitor-select");
+        const monOptionsText = monSelect ? [...monSelect.options].map(o => o.textContent).join(" | ") : "";
+        const hasLandscapeAndPortraitMonitors = monOptionsText.includes("[横屏]") && monOptionsText.includes("[竖屏]");
+        const hasTopBottomPresets = Boolean(
+          document.querySelector('.kal-dock-pos-card[data-dock-pos="top-desktop"]') &&
+          document.querySelector('.kal-dock-pos-card[data-dock-pos="bottom-desktop"]')
+        );
+
+        document.querySelector('.kal-panel [data-act="close"]')?.click();
+        return {
+          noAllTab,
+          defaultTabIsGeneral,
+          initialAlpha,
+          qgAlphaOn,
+          qgActive,
+          qgAlphaRestored,
+          qgRestoredInactive,
+          frostedOn,
+          paperRestoredByToggle,
+          contentRestored,
+          fontRestored,
+          auroraOn,
+          backdropRestored,
+          idleFadeDefaultOff,
+          steadyAlpha65,
+          steadyAlpha100,
+          hasLandscapeAndPortraitMonitors,
+          hasTopBottomPresets,
+        };
+      })()`);
+      const ok =
+        p11Res.noAllTab === true &&
+        p11Res.defaultTabIsGeneral === true &&
+        p11Res.initialAlpha === "1" &&
+        p11Res.qgAlphaOn === "0" &&
+        p11Res.qgActive === true &&
+        p11Res.qgAlphaRestored === "1" &&
+        p11Res.qgRestoredInactive === true &&
+        p11Res.frostedOn === true &&
+        p11Res.paperRestoredByToggle === true &&
+        p11Res.contentRestored === true &&
+        p11Res.fontRestored === true &&
+        p11Res.auroraOn === true &&
+        p11Res.backdropRestored === true &&
+        p11Res.idleFadeDefaultOff === true &&
+        p11Res.steadyAlpha65 === "0.65" &&
+        p11Res.steadyAlpha100 === "1" &&
+        p11Res.hasLandscapeAndPortraitMonitors === true &&
+        p11Res.hasTopBottomPresets === true;
+      record("P11-restore-defaults-quickglass-wallpaper-monitors", "设置全项恢复默认/透明底一键还原初始态/壁纸常驻透明度/移除全部设置/多屏横竖屏适配", ok, JSON.stringify(p11Res));
+    } catch (err) {
+      record("P11-restore-defaults-quickglass-wallpaper-monitors", "设置全项恢复默认/透明底一键还原初始态/壁纸常驻透明度/移除全部设置/多屏横竖屏适配", false, err.message);
+    }
+
+    // =========================================================================
+    // [P12-audit-polish] Phase 12 全方位体验与视觉优化回归：
+    // 1. 顶栏周次徽章在回到今天或切换月份时立即按选中日期计算（非月初第1天）
+    // 2. 顶栏「防窥」「透明底」按钮显示文字标签 + 窗口最小化/隐藏托盘控制按钮
+    // 3. 解除被 CSS 屏蔽的 4 项功能：单日底色标记栏、导出弹层「导出 .ics」、日格条数角标、黄历宜忌开关
+    // 4. 「排版与字体」内置系统/私有字体下拉选择器并与字体搜索实时联动
+    // 5. 「高级微调」拨杆开关右对齐 + 右栏生产力区无横向滚动条
+    // =========================================================================
+    try {
+      const p12Res = await cdp.evaluate(`(async () => {
+        const { getWeekOfYear } = await import("/src/lunar.js");
+        const { fromKey } = await import("/src/calendar.js");
+
+        // 1. Click "今天" and verify #kal-week-badge matches the selected date's week of year
+        document.getElementById("kal-today")?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const selectedKey = document.querySelector(".kal-cell.is-selected")?.dataset?.key || "";
+        const expectedWeek = selectedKey ? \`第 \${getWeekOfYear(fromKey(selectedKey))} 周\` : "";
+        const actualWeekBadge = document.getElementById("kal-week-badge")?.textContent?.trim() || "";
+        const weekBadgeAccurate = Boolean(expectedWeek && actualWeekBadge === expectedWeek);
+
+        // 2. Verify header button text labels & window controls visibility
+        const privacyLabelVisible = getComputedStyle(document.querySelector("#kal-privacy-btn span")).display !== "none";
+        const quickGlassLabelVisible = getComputedStyle(document.querySelector("#kal-quick-glass span")).display !== "none";
+        const winControlsPresent = Boolean(document.getElementById("kal-win-min") && document.getElementById("kal-win-close"));
+
+        // 3. Verify unblocked features: #kal-cell-color-bar & #kal-export-ics-btn & #kal-holiday-section
+        const timeToggle = document.getElementById("kal-time-toggle-btn");
+        if (document.getElementById("kal-agenda-add-meta")?.hidden) timeToggle?.click();
+        const colorBarVisible = getComputedStyle(document.getElementById("kal-cell-color-bar")).display !== "none";
+        if (!document.getElementById("kal-agenda-add-meta")?.hidden) timeToggle?.click();
+
+        document.getElementById("kal-export-btn")?.click();
+        const exportIcsBtnPresent = Boolean(document.getElementById("kal-export-ics-btn"));
+        document.getElementById("kal-export-close")?.click();
+
+        const holidaySecVisible = getComputedStyle(document.getElementById("kal-holiday-section")).display !== "none";
+        const prodOverflowX = getComputedStyle(document.getElementById("kal-productivity")).overflowX;
+
+        // 4. Open Settings -> "排版与字体" -> verify system/local font selects exist inside fontSec
+        document.getElementById("kal-settings")?.click();
+        await new Promise(r => setTimeout(r, 60));
+        document.querySelector('.kal-panel-tab[data-tab="type"]')?.click();
+        const typeFontSelects = document.querySelectorAll('.kal-sec[data-cat="type"] select').length;
+
+        // 5. Switch to "高级微调" -> verify switch right-alignment & showCellCount / showYiJi toggles
+        document.querySelector('.kal-panel-tab[data-tab="color"]')?.click();
+        const rowJustify = getComputedStyle(document.querySelector('.kal-advanced-drawer .kal-row')).justifyContent;
+        document.querySelector('.kal-panel [data-act="close"]')?.click();
+
+        return {
+          selectedKey,
+          expectedWeek,
+          actualWeekBadge,
+          weekBadgeAccurate,
+          privacyLabelVisible,
+          quickGlassLabelVisible,
+          winControlsPresent,
+          colorBarVisible,
+          exportIcsBtnPresent,
+          holidaySecVisible,
+          prodOverflowX,
+          typeFontSelects,
+          rowJustify,
+        };
+      })()`);
+      const ok =
+        p12Res.weekBadgeAccurate === true &&
+        p12Res.privacyLabelVisible === true &&
+        p12Res.quickGlassLabelVisible === true &&
+        p12Res.winControlsPresent === true &&
+        p12Res.colorBarVisible === true &&
+        p12Res.exportIcsBtnPresent === true &&
+        p12Res.holidaySecVisible === true &&
+        p12Res.prodOverflowX === "hidden" &&
+        p12Res.typeFontSelects >= 2 &&
+        p12Res.rowJustify === "space-between";
+      record("P12-audit-polish", "周次计算修复/顶栏文字与窗口控制/解锁底色标记与ICS导出/字体搜索选择器同页联动/高级微调对齐", ok, JSON.stringify(p12Res));
+    } catch (err) {
+      record("P12-audit-polish", "周次计算修复/顶栏文字与窗口控制/解锁底色标记与ICS导出/字体搜索选择器同页联动/高级微调对齐", false, err.message);
     }
 
     // 全程调用日志脱敏二次核对

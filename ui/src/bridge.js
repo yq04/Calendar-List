@@ -137,6 +137,8 @@ export async function createBridge(env = {}) {
 
       setEmbedMode: (mode) => invoke("set_embed_mode", { mode }),
       windowSetClickThrough: (enabled) => invoke("window_set_click_through", { enabled: Boolean(enabled) }),
+      windowMinimize: () => invoke("window_minimize"),
+      windowHideToTray: () => invoke("window_hide_to_tray"),
       deskReport: () => invoke("desk_report"),
       hitTestSelf: () => invoke("hit_test_self"),
       geometrySave: () => invoke("window_geometry_save"),
@@ -198,6 +200,11 @@ export async function createBridge(env = {}) {
     const saved = { ...structuredClone(theme), id: `demo-${Date.now()}-${memoryThemes.size}` };
     memoryThemes.set(saved.id, saved); activeTheme = saved;
     return structuredClone(saved);
+  };
+  mock.themeDelete = async id => {
+    if (id === "default" || String(id).startsWith("builtin-")) throw new Error("内置主题不可删除");
+    memoryThemes.delete(id);
+    return null;
   };
   mock.themeExportDraft = async () => { throw new Error("请在 Kal 桌面程序中导出主题"); };
   mock.themeGenerate = async () => ({ theme: null, report: null });
@@ -289,7 +296,11 @@ export async function createBridge(env = {}) {
     monitor: "Kal Test Monitor",
     widthRatio: 0.64,
     heightRatio: 0.94,
-    monitors: [{ monitor: "Kal Test Monitor", pxW: 1920, pxH: 1080, diagonalIn: 24.0, dpiScale: 1, work: [0, 0, 1920, 1040], rect: [0, 0, 1920, 1080] }],
+    idleFade: false,
+    monitors: [
+      { monitor: "Kal Test Monitor", pxW: 1920, pxH: 1080, mmW: 531, mmH: 299, ppi: 91.8, ppiKnown: true, diagonalIn: 24.0, dpi: 96, dpiScale: 1, kalScale: 0.956, orientation: "landscape", isPrimary: true, work: [0, 0, 1920, 1040], rect: [0, 0, 1920, 1080] },
+      { monitor: "Kal Portrait Monitor", pxW: 1440, pxH: 2560, mmW: 336, mmH: 598, ppi: 108.8, ppiKnown: true, diagonalIn: 27.0, dpi: 96, dpiScale: 1, kalScale: 1.133, orientation: "portrait", isPrimary: false, work: [1920, 0, 3360, 2520], rect: [1920, 0, 3360, 2560] },
+    ],
     appliedRect: [16, 28, 1228, 984],
   };
   mock.desktopDockStatus = async () => structuredClone(mockDock);
@@ -298,13 +309,16 @@ export async function createBridge(env = {}) {
       ...mockDock,
       docked: Boolean(opts.docked),
       position: opts.position || mockDock.position,
-      monitor: opts.monitor || mockDock.monitor,
+      monitor: opts.monitor !== undefined ? opts.monitor : mockDock.monitor,
       widthRatio: Number(opts.widthRatio) || mockDock.widthRatio,
       heightRatio: Number(opts.heightRatio) || mockDock.heightRatio,
+      idleFade: opts.idleFade !== undefined ? Boolean(opts.idleFade) : mockDock.idleFade,
     };
     return structuredClone(mockDock);
   };
   mock.windowSetClickThrough = async enabled => Boolean(enabled);
+  mock.windowMinimize = async () => true;
+  mock.windowHideToTray = async () => true;
   mock.pickImage = async () => null;
   mock.pickFontFile = async () => null;
   mock.pickSavePath = async () => null;

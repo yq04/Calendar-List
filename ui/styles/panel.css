@@ -277,6 +277,12 @@ body.kal-panel-open .kal-panel {
 .kal-dock-pos-preview[data-pos="center-desktop"] i {
   top: 2px; bottom: 2px; left: 16%; right: 16%;
 }
+.kal-dock-pos-preview[data-pos="top-desktop"] i {
+  top: 2px; left: 2px; right: 2px; height: 54%;
+}
+.kal-dock-pos-preview[data-pos="bottom-desktop"] i {
+  bottom: 2px; left: 2px; right: 2px; height: 54%;
+}
 .kal-dock-pos-preview[data-pos="current"] i {
   top: 4px; bottom: 4px; left: 25%; right: 25%;
   border: 1px dashed rgb(var(--kal-accent));
@@ -449,6 +455,7 @@ body.kal-panel-open .kal-panel {
 .kal-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: calc(8 * var(--kal-u));
   font-size: calc(11.5 * var(--kal-u));
   color: rgb(var(--kal-fg-muted));
@@ -571,6 +578,7 @@ body.kal-panel-open .kal-panel {
   gap: calc(8 * var(--kal-u));
 }
 .kal-theme-card {
+  position: relative;
   border-radius: calc(9 * var(--kal-u));
   padding: calc(9 * var(--kal-u)) calc(11 * var(--kal-u));
   display: flex;
@@ -579,10 +587,78 @@ body.kal-panel-open .kal-panel {
   gap: 5px;
   white-space: normal;
   text-align: left;
+  transition: border-color 140ms var(--kal-ease-out), background-color 140ms var(--kal-ease-out), box-shadow 140ms var(--kal-ease-out);
+}
+.kal-theme-card[data-theme-id="default"] {
+  display: none;
+}
+.kal-theme-card.is-on {
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-accent) / 0.08);
+  border-color: rgb(var(--kal-accent));
+  box-shadow: 0 0 0 1px rgb(var(--kal-accent) / 0.45);
+  font-weight: 600;
+}
+.kal-theme-card.is-on:not(:has(.kal-theme-del))::after {
+  content: "✓";
+  position: absolute;
+  top: calc(6 * var(--kal-u));
+  right: calc(8 * var(--kal-u));
+  width: calc(15 * var(--kal-u));
+  height: calc(15 * var(--kal-u));
+  border-radius: 50%;
+  background: rgb(var(--kal-accent));
+  color: rgb(var(--kal-accent-fg));
+  font-size: calc(9.5 * var(--kal-u));
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  line-height: 1;
 }
 .kal-theme-card small { font-size: 10px; opacity: 0.78; }
-.kal-theme-colors { display: flex; width: 100%; height: 10px; overflow: hidden; border-radius: 3px; }
+.kal-theme-colors { display: flex; width: 100%; height: 10px; overflow: hidden; border-radius: 3px; border: 1px solid rgb(var(--kal-line) / 0.25); }
 .kal-theme-colors i { flex: 1; }
+.kal-theme-del {
+  position: absolute;
+  top: calc(5 * var(--kal-u));
+  right: calc(7 * var(--kal-u));
+  width: calc(16 * var(--kal-u));
+  height: calc(16 * var(--kal-u));
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(12 * var(--kal-u));
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+}
+.kal-theme-del:hover {
+  opacity: 1;
+  background: rgb(var(--kal-danger) / 0.18);
+  color: rgb(var(--kal-danger));
+}
+.kal-row-stack {
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: calc(6 * var(--kal-u)) !important;
+}
+.kal-dock-alpha-ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: calc(6 * var(--kal-u)) !important;
+  width: 100%;
+}
+.kal-dock-alpha-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--kal-u));
+  width: 100%;
+}
+.kal-dock-alpha-slider-wrap input[type="range"] {
+  flex: 1 1 auto;
+}
 .kal-panel .is-error { color: rgb(var(--kal-danger)); }
 .kal-panel .kal-chip:focus-visible, .kal-panel input:focus-visible, .kal-panel select:focus-visible { outline: 2px solid rgb(var(--kal-focus)); outline-offset: 2px; }
 
@@ -632,6 +708,7 @@ body.kal-panel-open .kal-panel {
 .kal-row-ctl-end {
   justify-content: flex-end;
   flex: 0 0 auto !important;
+  margin-left: auto;
 }
 
 /* 现代胶囊拨杆开关 (.kal-switch) */

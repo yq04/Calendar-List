@@ -373,3 +373,21 @@ pub fn describe(scan: &DesktopScan) -> String {
         scan.worker_visible_without_defview
     )
 }
+
+/// 原子设置窗口坐标与物理尺寸（跨多显示器或不同 DPI 显示器切换时先移入目标屏再定尺寸，避免 WM_DPICHANGED 二次缩放失真）。
+pub fn set_window_rect(hwnd: Hwnd, x: i32, y: i32, w: i32, h: i32, bottom: bool) -> Result<(), String> {
+    if hwnd == 0 {
+        return Err("hwnd 无效".into());
+    }
+    let z = if bottom { HWND_BOTTOM } else { -2 }; // HWND_BOTTOM or HWND_NOTOPMOST
+    unsafe {
+        // 第一步：先将窗口起点移入目标显示器以触发目标屏 DPI 上下文切换
+        SetWindowPos(hwnd, z, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+        // 第二步：在目标显示器 DPI 上下文下精确锁定物理像素位置与尺寸
+        let ok = SetWindowPos(hwnd, z, x, y, w, h, SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        if ok == 0 {
+            return Err("SetWindowPos 失败".into());
+        }
+    }
+    Ok(())
+}

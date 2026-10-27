@@ -72,9 +72,7 @@ const state = {
     monitor: "",
     widthRatio: 0.64,
     heightRatio: 0.94,
-    idleFade: (() => {
-      try { return window.localStorage?.getItem("kal.dockIdleFade") === "true"; } catch { return false; }
-    })(),
+    idleFade: false,
     monitors: [],
   },
   clickThrough: false,
@@ -91,6 +89,7 @@ const agendaGuard = createSeqGuard();
 const searchGuard = createSeqGuard();
 const themeGuard = createSeqGuard();
 let themeSnapshot = null;
+let quickGlassSnapshot = null;
 let themeSaving = false;
 
 const quickDrafts = createDraftSessions();
@@ -166,10 +165,11 @@ function cacheEls() {
     "kal-export-btn", "kal-export-popover", "kal-export-close",
     "kal-export-orient", "kal-export-paper", "kal-export-margin",
     "kal-export-lunar", "kal-export-almanac", "kal-export-completed", "kal-export-detail",
-    "kal-export-pdf", "kal-export-md", "kal-export-import-ics", "kal-ics-file-input",
+    "kal-export-pdf", "kal-export-md", "kal-export-ics-btn", "kal-export-import-ics", "kal-ics-file-input",
     "kal-export-print", "kal-export-status",
     "kal-day-more-popover", "kal-day-more-title", "kal-day-more-close", "kal-day-more-list",
     "kal-refresh", "kal-lock-btn", "kal-quick-glass", "kal-privacy-btn", "kal-view-toggle",
+    "kal-win-min", "kal-win-close",
     "kal-holiday-json", "kal-holiday-save", "kal-holiday-sample", "kal-holiday-reset", "kal-holiday-status",
   ]) {
     el[id] = document.getElementById(id);
@@ -463,7 +463,13 @@ function openCellInlineTaskEdit(taskEl, ev) {
       () => bridge.itemUpdate(ev.id, ev.date, nextTitle, expected),
       {
         onConfirmed: () => {
-          panel?.addLog?.("schedule", `左栏直编安排「${ev.title}」→「${nextTitle}」(${ev.date})`);
+          const prevTitle = ev.title;
+          pushUndoAction({
+            label: `编辑「${prevTitle}」`,
+            undo: () => bridge.itemUpdate(ev.id, ev.date, prevTitle, null),
+            redo: () => bridge.itemUpdate(ev.id, ev.date, nextTitle, null),
+          });
+          panel?.addLog?.("schedule", `左栏直编安排「${prevTitle}」→「${nextTitle}」(${ev.date})`);
         },
         onCancelled: () => {
           finished = false;
@@ -1156,7 +1162,14 @@ async function renderAgenda(key, byDay, seqToken = agendaGuard.next()) {
         () => bridge.itemToggleDone(ev.id, ev.date, !ev.done, expected),
         {
           onConfirmed: () => {
-            panel?.addLog?.("schedule", `${!ev.done ? "完成" : "取消完成"}安排「${ev.title}」(${ev.date})`);
+            const prevDone = Boolean(ev.done);
+            const nextDone = !prevDone;
+            pushUndoAction({
+              label: `${nextDone ? "完成" : "取消完成"}「${ev.title}」`,
+              undo: () => bridge.itemToggleDone(ev.id, ev.date, prevDone, null),
+              redo: () => bridge.itemToggleDone(ev.id, ev.date, nextDone, null),
+            });
+            panel?.addLog?.("schedule", `${nextDone ? "完成" : "取消完成"}安排「${ev.title}」(${ev.date})`);
           },
         },
       );
@@ -1507,7 +1520,13 @@ function beginAgendaEdit(li, textEl, ev, focus = true) {
     const outcome = await writeAction(() => bridge.itemUpdate(ev.id, ev.date, value, snapshot.expected), {
       onConfirmed: () => {
         editDrafts.acknowledge(snapshot);
-        panel?.addLog?.("schedule", `编辑安排「${ev.title}」→「${value}」(${ev.date})`);
+        const prevTitle = ev.title;
+        pushUndoAction({
+          label: `编辑「${prevTitle}」`,
+          undo: () => bridge.itemUpdate(ev.id, ev.date, prevTitle, null),
+          redo: () => bridge.itemUpdate(ev.id, ev.date, value, null),
+        });
+        panel?.addLog?.("schedule", `编辑安排「${prevTitle}」→「${value}」(${ev.date})`);
       },
       onCancelled: release,
     });
@@ -1558,7 +1577,15 @@ function beginInlineDelete(li, delBtn, ev) {
       () => bridge.itemDelete(ev.id, ev.date, expected),
       {
         onConfirmed: () => {
-          panel?.addLog?.("schedule", `删除安排「${ev.title}」(${ev.date})`);
+          const delDate = ev.date;
+          const delTitle = ev.title;
+          const delTime = ev.time || "";
+          pushUndoAction({
+            label: `删除「${delTitle}」`,
+            undo: () => bridge.itemCreate(delDate, delTitle, delTime),
+            redo: null,
+          });
+          panel?.addLog?.("schedule", `删除安排「${delTitle}」(${delDate})`);
         },
         onCancelled: () => restore(),
       },
@@ -1601,9 +1628,9 @@ function beginInlineDelete(li, delBtn, ev) {
 async function render() {
   const seq = renderGuard.next();
   const agendaSeq = agendaGuard.next();
+  if (!state.selected) state.selected = pickDefaultSelected(state.year, state.month);
   renderHeader();
   renderWeekHead();
-  if (!state.selected) state.selected = pickDefaultSelected(state.year, state.month);
   syncQuickDraft();
 
   let cells = getMonthMatrix(state.year, state.month, state.weekStart);
@@ -1872,7 +1899,11 @@ async function applyDesktopDock(patch = {}, notify = true) {
   syncLockUi();
 
   const onlyIdleFadeChanged = Object.keys(patch).length === 1 && "idleFade" in patch;
-  if (!onlyIdleFadeChanged && bridge?.desktopApplyDock) {
+  if (onlyIdleFadeChanged) {
+    try {
+      await bridge?.settingsSet?.({ desktop: { dock: { idleFade: next.idleFade } } });
+    } catch { /* ignore */ }
+  } else if (bridge?.desktopApplyDock) {
     try {
       const res = await bridge.desktopApplyDock({
         docked: next.docked,
@@ -1880,6 +1911,7 @@ async function applyDesktopDock(patch = {}, notify = true) {
         monitor: next.monitor || "",
         widthRatio: next.widthRatio,
         heightRatio: next.heightRatio,
+        idleFade: next.idleFade,
       });
       if (res && typeof res === "object") {
         state.dockConfig = {
@@ -1889,9 +1921,11 @@ async function applyDesktopDock(patch = {}, notify = true) {
           monitor: res.monitor ?? state.dockConfig.monitor,
           widthRatio: res.widthRatio ?? state.dockConfig.widthRatio,
           heightRatio: res.heightRatio ?? state.dockConfig.heightRatio,
+          idleFade: res.idleFade !== undefined ? Boolean(res.idleFade) : state.dockConfig.idleFade,
           monitors: Array.isArray(res.monitors) ? res.monitors : state.dockConfig.monitors,
         };
       }
+      await refreshDisplayAdaptation();
     } catch (err) {
       console.warn("[kal] 应用桌面固定布局异常:", err);
     }
@@ -1905,6 +1939,8 @@ async function applyDesktopDock(patch = {}, notify = true) {
       "left-compact": "左侧适中",
       "right-desktop": "屏幕右侧",
       "center-desktop": "桌面居中",
+      "top-desktop": "屏幕上半区（竖屏）",
+      "bottom-desktop": "屏幕下半区（竖屏）",
       "current": "当前位置",
     };
     const posName = posLabels[state.dockConfig.position] || "屏幕左侧";
@@ -2414,19 +2450,75 @@ async function initHolidayEditor() {
 function syncQuickGlassBtn(t = state.draft) {
   const btn = el["kal-quick-glass"];
   if (!btn) return;
-  const isTransparent = (t?.color?.bgAlpha ?? 0.62) <= 0.08;
+  const isTransparent = (t?.color?.bgAlpha ?? 1) <= 0.08;
   btn.classList.toggle("is-active", isTransparent);
+  btn.setAttribute("aria-pressed", String(isTransparent));
+  const span = btn.querySelector("span");
+  if (span) span.textContent = isTransparent ? "还原实底" : "透明底";
   btn.title = isTransparent
-    ? "当前为全透悬浮模式（点击恢复毛玻璃底）"
-    : "一键切换全透明底 / 毛玻璃";
+    ? "当前为全透悬浮模式（再次点击还原初始底色状态）"
+    : "一键切换全透明底 / 还原初始状态";
 }
 
-function toggleQuickGlass() {
-  const isTransparent = (state.draft?.color?.bgAlpha ?? 0.62) <= 0.08;
-  const recipeId = isTransparent ? "frosted" : "transparent";
-  const next = applyStyleRecipe(state.draft, recipeId);
+async function toggleQuickGlass() {
+  const isTransparent = (state.draft?.color?.bgAlpha ?? 1) <= 0.08;
+  let next;
+  if (isTransparent) {
+    if (quickGlassSnapshot && (quickGlassSnapshot.color?.bgAlpha ?? 1) > 0.08) {
+      next = structuredClone(quickGlassSnapshot);
+    } else if ((state.applied?.color?.bgAlpha ?? 1) > 0.08) {
+      next = structuredClone(state.applied);
+    } else {
+      next = applyStyleRecipe(state.draft, "paper");
+    }
+    quickGlassSnapshot = null;
+  } else {
+    quickGlassSnapshot = structuredClone(state.draft);
+    next = applyStyleRecipe(state.draft, "transparent");
+  }
   previewDraft(next);
   panel?.sync();
+  try {
+    const toCommit = structuredClone(next);
+    toCommit.id = "";
+    const saved = normalizeTheme(await bridge.themeCommit(toCommit));
+    saved.presetId = next.presetId || state.applied?.presetId || state.applied?.id || "";
+    state.applied = saved;
+    themeSnapshot = structuredClone(saved);
+  } catch { /* ignore */ }
+}
+
+function syncViewportOrientationClasses() {
+  const vw = window.innerWidth || 1080;
+  const vh = window.innerHeight || 760;
+  const isPortraitViewport = vh > vw * 1.05 || vw < 760;
+  document.body.classList.toggle("kal-viewport-portrait", isPortraitViewport);
+  document.body.classList.toggle("kal-viewport-compact", vw < 880);
+}
+
+async function refreshDisplayAdaptation() {
+  syncViewportOrientationClasses();
+  if (!bridge?.displayInfo) return;
+  try {
+    const d = await bridge.displayInfo();
+    if (!d || typeof d !== "object") return;
+    if (!state.info) state.info = {};
+    state.info.display = d;
+    const pref = Number.isFinite(+state.draft?.scale) && +state.draft.scale > 0 ? +state.draft.scale : 1;
+    const ppi = d.kalScale ?? 1;
+    setUiScale(state.draft?.scaleMode === "fixed" ? pref : ppi * pref);
+    if (el["kal-display-tag"]) {
+      if (d.ppiKnown) {
+        const orient = (d.orientation === "portrait" || d.pxH > d.pxW) ? "竖屏" : "横屏";
+        el["kal-display-tag"].textContent =
+          `${d.pxW}×${d.pxH} · ${d.diagonalIn.toFixed(1)}" ${orient} · ${Math.round(d.dpiScale * 100)}%`;
+        el["kal-display-tag"].title =
+          `${d.monitor}\n方向 ${orient} · 物理 ${d.mmW}×${d.mmH}mm\n真实 ${d.ppi.toFixed(1)} PPI\n缩放校正 ${d.kalScale.toFixed(3)}`;
+      } else {
+        el["kal-display-tag"].textContent = `${d.pxW}×${d.pxH}`;
+      }
+    }
+  } catch { /* ignore */ }
 }
 
 function applyDraft(t) {
@@ -2489,6 +2581,49 @@ function cancelThemeSession() {
   }
 }
 
+async function factoryResetTheme() {
+  const fresh = normalizeTheme(structuredClone(DEFAULT_THEME));
+  fresh.presetId = "default";
+  quickGlassSnapshot = null;
+  const needsRender = applyDraft(fresh);
+  try {
+    const toSave = structuredClone(fresh);
+    toSave.id = "";
+    const saved = normalizeTheme(await bridge.themeCommit(toSave));
+    saved.presetId = "default";
+    state.applied = saved;
+    state.draft = structuredClone(saved);
+    themeSnapshot = structuredClone(saved);
+  } catch {
+    state.applied = fresh;
+    themeSnapshot = structuredClone(fresh);
+  }
+  if (el["kal-source-tag"]) el["kal-source-tag"].textContent = DEFAULT_THEME.name;
+  panel?.setReportText("已恢复全部默认外观与排版（星港素纸）。");
+  panel?.sync();
+  if (needsRender) await render();
+}
+
+async function commitQuickAlpha(nextTheme) {
+  const norm = normalizeTheme(nextTheme);
+  norm.presetId = norm.presetId || state.draft?.presetId || state.applied?.presetId || "";
+  const needsRender = applyDraft(norm);
+  try {
+    const toSave = structuredClone(norm);
+    toSave.id = "";
+    const saved = normalizeTheme(await bridge.themeCommit(toSave));
+    saved.presetId = norm.presetId;
+    state.applied = saved;
+    state.draft = structuredClone(saved);
+    themeSnapshot = structuredClone(saved);
+  } catch {
+    state.applied = norm;
+    themeSnapshot = structuredClone(norm);
+  }
+  panel?.sync();
+  if (needsRender) await render();
+}
+
 async function regen(opts = {}) {
   const seq = themeGuard.next();
   let res;
@@ -2515,11 +2650,13 @@ async function saveTheme() {
   themeSaving = true;
   themeGuard.next();
   panel?.setBusy(true);
+  const presetId = state.draft?.presetId || "";
   const t = structuredClone(state.draft);
   t.id = "";
   t.name = t.name || `主题 ${new Date().toLocaleString("zh-CN")}`;
   try {
     const saved = normalizeTheme(await bridge.themeCommit(t));
+    saved.presetId = presetId;
     const needsRender = applyDraft(saved);
     state.applied = saved;
     themeSnapshot = structuredClone(saved);
@@ -2541,7 +2678,12 @@ async function applyThemeById(id) {
   try {
     const t = await bridge.themeLoad(id);
     if (!themeGuard.isCurrent(seq)) return false;
-    if (applyDraft(mergeThemeAppearance(state.draft, t))) await render();
+    let merged = mergeThemeAppearance(state.draft, t);
+    if (id === "default") {
+      merged = applyStyleRecipe(merged, "paper");
+    }
+    merged.presetId = id;
+    if (applyDraft(merged)) await render();
     return true;
   } catch (err) {
     if (themeGuard.isCurrent(seq)) panel?.setReportText(`预览失败：${sanitizeUserMessage(err?.message || String(err))}`, true);
@@ -2583,6 +2725,16 @@ let backdropManager = null;
 async function boot() {
   cacheEls();
   if (!window.__TAURI__) document.body.classList.add("kal-debug-bg");
+  syncViewportOrientationClasses();
+
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    syncViewportOrientationClasses();
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      refreshDisplayAdaptation();
+    }, 180);
+  });
 
   bridge = await createBridge();
   backdropManager = createBackdropManager({ bridge, getTheme: () => state.draft });
@@ -2606,10 +2758,11 @@ async function boot() {
     if (info?.uiScale) setUiScale(info.uiScale);
     if (info?.display?.ppiKnown) {
       const d = info.display;
+      const orient = (d.orientation === "portrait" || d.pxH > d.pxW) ? "竖屏" : "横屏";
       el["kal-display-tag"].textContent =
-        `${d.pxW}×${d.pxH} · ${d.diagonalIn.toFixed(1)}" · ${d.dpiScale * 100}%`;
+        `${d.pxW}×${d.pxH} · ${d.diagonalIn.toFixed(1)}" ${orient} · ${Math.round(d.dpiScale * 100)}%`;
       el["kal-display-tag"].title =
-        `${d.monitor}\n物理 ${d.mmW}×${d.mmH}mm\n真实 ${d.ppi.toFixed(1)} PPI\n缩放校正 ${d.kalScale.toFixed(3)}`;
+        `${d.monitor}\n方向 ${orient} · 物理 ${d.mmW}×${d.mmH}mm\n真实 ${d.ppi.toFixed(1)} PPI\n缩放校正 ${d.kalScale.toFixed(3)}`;
     } else {
       el["kal-display-tag"].textContent = "物理尺寸未知";
     }
@@ -2641,6 +2794,8 @@ async function boot() {
     onOpen: openThemeSession,
     onCancel: cancelThemeSession,
     onReset: () => { cancelThemeSession(); panel.sync(); },
+    onFactoryReset: factoryResetTheme,
+    onCommitQuickAlpha: commitQuickAlpha,
     onModeChange: regenMode,
     onRegen: regen,
     onApply: applyThemeById,
@@ -2665,8 +2820,10 @@ async function boot() {
           monitor: dockRes.monitor ?? state.dockConfig.monitor,
           widthRatio: dockRes.widthRatio ?? state.dockConfig.widthRatio,
           heightRatio: dockRes.heightRatio ?? state.dockConfig.heightRatio,
+          idleFade: Boolean(dockRes.idleFade),
           monitors: Array.isArray(dockRes.monitors) ? dockRes.monitors : state.dockConfig.monitors,
         };
+        try { window.localStorage?.setItem("kal.dockIdleFade", String(Boolean(dockRes.idleFade))); } catch { /* ignore */ }
         state.windowLocked = Boolean(dockRes.docked);
         syncLockUi();
         panel?.syncDockUi?.();
@@ -2734,7 +2891,10 @@ function bindControls() {
   });
   el["kal-export-pdf"]?.addEventListener("click", () => exportCalendarPdf());
   el["kal-export-md"]?.addEventListener("click", () => exportCalendarMarkdown());
+  el["kal-export-ics-btn"]?.addEventListener("click", () => exportCurrentAgendaIcs(true));
   el["kal-export-import-ics"]?.addEventListener("click", () => triggerImportIcs());
+  el["kal-win-min"]?.addEventListener("click", () => bridge?.windowMinimize?.());
+  el["kal-win-close"]?.addEventListener("click", () => bridge?.windowHideToTray?.());
   el["kal-ics-file-input"]?.addEventListener("change", async e => {
     const file = e.target?.files?.[0];
     if (!file) return;

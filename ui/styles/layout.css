@@ -316,3 +316,33 @@ body.kal-cell-center { --kal-cell-align: center; }
 body.kal-window-locked.kal-dock-idle-fade:not(.kal-panel-open) .kal-root:not(:hover):not(:focus-within) {
   opacity: 0.62;
 }
+
+/* ---- 竖屏显示器（Portrait）与紧凑窄窗自适应布局 ---- */
+body.kal-viewport-portrait .kal-body {
+  flex-direction: column;
+  gap: calc(10 * var(--kal-u));
+}
+body.kal-viewport-portrait .kal-calendar-col {
+  flex: 1 1 62%;
+  min-height: 0;
+}
+body.kal-viewport-portrait .kal-agenda {
+  flex: 0 0 36%;
+  max-height: 40%;
+  width: 100%;
+}
+body.kal-viewport-compact .kal-header {
+  flex-wrap: wrap;
+  gap: calc(6 * var(--kal-u));
+}
+@media (max-width: 780px) {
+  .kal-body {
+    flex-direction: column;
+    gap: calc(10 * var(--kal-u));
+  }
+  .kal-agenda {
+    flex: 0 0 36%;
+    max-height: 40%;
+    width: 100%;
+  }
+}

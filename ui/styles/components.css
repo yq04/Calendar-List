@@ -114,23 +114,33 @@
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
-#kal-lock-btn {
+#kal-lock-btn,
+#kal-privacy-btn,
+#kal-quick-glass {
   padding: 0 calc(8 * var(--kal-u));
   width: auto;
   gap: calc(4 * var(--kal-u));
 }
-#kal-lock-btn span {
+#kal-lock-btn span,
+#kal-privacy-btn span,
+#kal-quick-glass span {
   display: inline;
   font-size: calc(11 * var(--kal-u));
 }
-#kal-privacy-btn,
-#kal-quick-glass {
-  padding: 0;
-  width: calc(28 * var(--kal-u));
+.kal-win-ctls {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(2 * var(--kal-u));
+  margin-left: calc(2 * var(--kal-u));
+  padding-left: calc(4 * var(--kal-u));
+  border-left: 1px solid rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.65));
 }
-#kal-privacy-btn span,
-#kal-quick-glass span {
-  display: none;
+body.kal-window-locked .kal-win-ctls {
+  display: none !important;
+}
+.kal-win-close-btn:hover {
+  color: rgb(var(--kal-danger)) !important;
+  background: rgb(var(--kal-danger) / 0.12) !important;
 }
 .kal-icon-svg {
   width: calc(14 * var(--kal-u));
@@ -691,9 +701,26 @@ body.kal-bullet-number .kal-task.is-done::before {
 }
 
 .kal-cell-count {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(15 * var(--kal-u));
+  padding: 0 calc(4.5 * var(--kal-u));
+  border-radius: var(--kal-radius-pill);
+  font-family: var(--kal-font-family-num);
+  font-size: calc(9.5 * var(--kal-u));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--kal-fg-muted));
+  background: rgb(var(--kal-fg) / 0.06);
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
-body.kal-no-cell-count .kal-cell-count { display: none; }
+.kal-cell-count.has-todo {
+  color: rgb(var(--kal-accent));
+  background: rgb(var(--kal-accent) / 0.10);
+}
+body.kal-no-cell-count .kal-cell-count { display: none !important; }
 
 /* ---- 日程面板 (与左侧日历格统一字体、字重、色彩与卡片层级) ---- */
 .kal-agenda-head {
@@ -771,11 +798,21 @@ body.kal-no-cell-count .kal-cell-count { display: none; }
   display: none;
 }
 .kal-yiji-box {
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--kal-u));
+  margin-top: calc(2 * var(--kal-u));
+  padding-top: calc(4 * var(--kal-u));
+  border-top: 1px dashed rgb(var(--kal-line) / calc(var(--kal-line-alpha) * 0.45));
+}
+body.kal-no-yiji .kal-yiji-box {
   display: none !important;
 }
 .kal-yiji-ganzhi,
 .kal-yiji-detail {
-  display: none;
+  font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-dim));
+  line-height: 1.3;
 }
 .kal-yiji-pills {
   display: flex;
@@ -928,8 +965,11 @@ body.kal-no-cell-count .kal-cell-count { display: none; }
   min-width: calc(108 * var(--kal-u));
 }
 .kal-agenda-time-input:focus,
-.kal-agenda-date-input:focus {
+.kal-agenda-date-input:focus,
+.kal-agenda-time-input:focus-visible,
+.kal-agenda-date-input:focus-visible {
   border-color: rgb(var(--kal-accent));
+  outline: none;
 }
 .kal-agenda-time-input[aria-invalid="true"] {
   border-color: rgb(var(--kal-danger));
@@ -1250,13 +1290,15 @@ body.kal-privacy-mode .kal-note-entry:hover .kal-note-content {
 .kal-productivity {
   flex: 0 1 auto;
   max-height: 36%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-top: var(--kal-border-w) solid rgb(var(--kal-line) / var(--kal-border-alpha));
   font-size: calc(11 * var(--kal-u));
 }
 .kal-tools-section { padding: calc(5 * var(--kal-u)) 0; }
 .kal-tools-section > summary,
-.kal-countdown-editor > summary {
+.kal-countdown-editor > summary,
+.kal-note-entry > summary {
   list-style: none;
   display: flex;
   align-items: center;
@@ -1268,23 +1310,29 @@ body.kal-privacy-mode .kal-note-entry:hover .kal-note-content {
   transition: color 120ms ease, background-color 120ms ease;
 }
 .kal-tools-section > summary::-webkit-details-marker,
-.kal-countdown-editor > summary::-webkit-details-marker {
+.kal-countdown-editor > summary::-webkit-details-marker,
+.kal-note-entry > summary::-webkit-details-marker {
   display: none;
 }
 .kal-tools-section > summary::after,
-.kal-countdown-editor > summary::after {
+.kal-countdown-editor > summary::after,
+.kal-note-entry > summary::after {
   content: "›";
   font-size: calc(13 * var(--kal-u));
   line-height: 1;
   color: rgb(var(--kal-fg-dim));
   transition: transform 150ms var(--kal-ease-out);
+  flex: 0 0 auto;
+  margin-left: calc(6 * var(--kal-u));
 }
 .kal-tools-section[open] > summary::after,
-.kal-countdown-editor[open] > summary::after {
+.kal-countdown-editor[open] > summary::after,
+.kal-note-entry[open] > summary::after {
   transform: rotate(90deg);
 }
 .kal-tools-section > summary:hover,
-.kal-countdown-editor > summary:hover {
+.kal-countdown-editor > summary:hover,
+.kal-note-entry > summary:hover {
   color: rgb(var(--kal-fg));
 }
 .kal-tools-section > summary { font-weight: 500; font-size: calc(11.5 * var(--kal-u)); }
@@ -1333,7 +1381,6 @@ body.kal-privacy-mode .kal-note-entry:hover .kal-note-content {
 .kal-note-content { white-space: pre-wrap; user-select: text; overflow-wrap: anywhere; line-height: 1.5; max-height: calc(190 * var(--kal-u)); overflow: auto; }
 .kal-note-content button { display: block; }
 .kal-note-badge { display: none; }
-#kal-holiday-section { display: none; }
 .kal-desktop-settings { padding: 0; }
 .kal-desktop-settings .kal-desktop-summary { margin-bottom: calc(6 * var(--kal-u)); }
 .kal-productivity :focus-visible { outline: 1px solid rgb(var(--kal-accent)); outline-offset: 2px; }
@@ -1517,8 +1564,48 @@ body.kal-window-locked .kal-spacer[data-tauri-drag-region] {
 }
 
 .kal-cell-color-bar {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--kal-u));
+  flex-wrap: wrap;
 }
+.kal-cell-color-label {
+  width: calc(28 * var(--kal-u));
+  flex: 0 0 auto;
+  font-size: calc(10.5 * var(--kal-u));
+  font-weight: 600;
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-color-swatch-btn {
+  appearance: none;
+  width: calc(16 * var(--kal-u));
+  height: calc(16 * var(--kal-u));
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgb(var(--kal-line) / 0.65);
+  background: rgb(var(--kal-surface));
+  color: rgb(var(--kal-fg-muted));
+  font-size: calc(9.5 * var(--kal-u));
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 120ms var(--kal-ease-out), box-shadow 120ms var(--kal-ease-out), border-color 120ms var(--kal-ease-out);
+}
+.kal-color-swatch-btn:hover {
+  transform: scale(1.12);
+}
+.kal-color-swatch-btn.is-active {
+  border-color: rgb(var(--kal-accent));
+  box-shadow: 0 0 0 2px rgb(var(--kal-accent) / 0.32);
+}
+.kal-color-swatch-btn[data-swatch="rose"] { background: #f43f5e; border-color: rgba(244, 63, 94, 0.55); }
+.kal-color-swatch-btn[data-swatch="amber"] { background: #f59e0b; border-color: rgba(245, 158, 11, 0.55); }
+.kal-color-swatch-btn[data-swatch="emerald"] { background: #10b981; border-color: rgba(16, 185, 129, 0.55); }
+.kal-color-swatch-btn[data-swatch="sky"] { background: #0ea5e9; border-color: rgba(14, 165, 233, 0.55); }
+.kal-color-swatch-btn[data-swatch="violet"] { background: #8b5cf6; border-color: rgba(139, 92, 246, 0.55); }
+.kal-color-swatch-btn[data-swatch="coral"] { background: #f97316; border-color: rgba(249, 115, 22, 0.55); }
+.kal-color-swatch-btn[data-swatch="gold"] { background: #eab308; border-color: rgba(234, 179, 8, 0.55); }
 
 /* 自然语言速记实时解析预览（极简文字提示，无杂乱胶囊框） */
 .kal-nlp-preview {

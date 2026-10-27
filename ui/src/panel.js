@@ -7,7 +7,7 @@
 import {
   DEFAULT_THEME, getPath, setPath,
   ART_BACKDROPS, STYLE_RECIPES, FONT_PRESETS, CONTENT_PRESETS,
-  applyStyleRecipe, applyContentPreset,
+  applyStyleRecipe, applyContentPreset, applyFontPreset, applySteadyWallAlpha,
   ACCENT_SWATCHES, applyAccentSwatch, applyI18nToDom,
   APP_VERSION, APP_STAGE_LABEL,
 } from "./theme.js";
@@ -16,11 +16,13 @@ import { createLocalFonts, localFontId } from "./local-fonts.js";
 const SIZE = (min, max, step = 1) => ({ min, max, step });
 
 const DOCK_POSITIONS = [
-  { id: "left-desktop", name: "占据屏幕左侧", desc: "推荐 · 贴合左半屏" },
+  { id: "left-desktop", name: "占据屏幕左侧", desc: "推荐 · 横屏左半区 / 竖屏上半区" },
   { id: "left-icon-safe", name: "左侧避让图标", desc: "预留最左桌面图标列" },
   { id: "left-compact", name: "左侧适中尺寸", desc: "52% 宽度轻巧左置" },
   { id: "right-desktop", name: "占据屏幕右侧", desc: "贴合屏幕右半区" },
   { id: "center-desktop", name: "桌面居中固定", desc: "屏幕中央对称固定" },
+  { id: "top-desktop", name: "占据屏幕上半区", desc: "竖屏推荐 · 贴合屏幕上半区" },
+  { id: "bottom-desktop", name: "占据屏幕下半区", desc: "竖屏适用 · 贴合屏幕下半区" },
   { id: "current", name: "原地锁定位置", desc: "固定在当前窗口坐标" },
 ];
 
@@ -29,6 +31,14 @@ const DOCK_WIDTH_OPTIONS = [
   { ratio: 0.64, label: "64% 推荐" },
   { ratio: 0.75, label: "75%" },
   { ratio: 0.85, label: "85%" },
+];
+
+const WALL_ALPHA_OPTIONS = [
+  { alpha: 0, label: "全透 0%" },
+  { alpha: 0.35, label: "轻透 35%" },
+  { alpha: 0.65, label: "半透 65%" },
+  { alpha: 0.85, label: "微透 85%" },
+  { alpha: 1, label: "实底 100%（默认）" },
 ];
 
 /** 高级微调控件清单：[分区标题, 分区分类, [控件...]] */
@@ -43,6 +53,7 @@ const SECTIONS = [
     { label: "日程栏", path: "layout.agenda", type: "seg", options: [["side", "显示"], ["hidden", "隐藏"]] },
     { label: "休/班角标", path: "layout.showHolidayBadge", type: "bool" },
     { label: "显示农历", path: "layout.showLunar", type: "bool" },
+    { label: "黄历宜忌", path: "layout.showYiJi", type: "bool" },
     { label: "显示周次", path: "layout.showWeekNumber", type: "bool" },
     { label: "周末着色", path: "layout.showWeekendColor", type: "bool" },
     { label: "显示条数", path: "layout.showCellCount", type: "bool" },
@@ -60,7 +71,7 @@ const SECTIONS = [
     { label: "外框圆角", path: "shape.radius", type: "range", ...SIZE(0, 36, 1), fmt: v => `${v}px` },
     { label: "日格圆角", path: "shape.radiusCell", type: "range", ...SIZE(0, 24, 1), fmt: v => `${v}px` },
     { label: "描边宽度", path: "shape.borderWidth", type: "range", ...SIZE(0, 3, 0.5), fmt: v => `${v}px` },
-    { label: "边框不透明", path: "color.borderAlpha", type: "range", ...SIZE(0, 0.5, 0.01), fmt: v => `${Math.round(v * 100)}%` },
+    { label: "边框不透明", path: "color.borderAlpha", type: "range", ...SIZE(0, 1, 0.01), fmt: v => `${Math.round(v * 100)}%` },
     { label: "外边距", path: "layout.pad", type: "range", ...SIZE(0, 40, 1), fmt: v => `${v}px` },
     { label: "格间距", path: "layout.cellGap", type: "range", ...SIZE(0, 12, 1), fmt: v => `${v}px` },
     { label: "日程栏宽", path: "layout.agendaWidth", type: "range", ...SIZE(140, 420, 4), fmt: v => `${v}px` },
@@ -115,12 +126,12 @@ const SECTIONS = [
     { label: "选中背景", path: "color.selectedBg", type: "color" },
     { label: "选中文字", path: "color.selectedFg", type: "color" },
     { label: "分隔线", path: "color.line", type: "color" },
-    { label: "线透明度", path: "color.lineAlpha", type: "range", ...SIZE(0, 0.4, 0.005), fmt: v => v.toFixed(3) },
+    { label: "线透明度", path: "color.lineAlpha", type: "range", ...SIZE(0, 1, 0.01), fmt: v => `${Math.round(v * 100)}%` },
   ]],
 ];
 
 export function createPanel({
-  mount, getTheme, onPreview, onCommit, onRegen, onReset, onModeChange,
+  mount, getTheme, onPreview, onCommit, onRegen, onReset, onFactoryReset, onCommitQuickAlpha, onModeChange,
   onApply, onExport, onImport, onOpen, onCancel, onUndo,
   getDockConfig, onApplyDock, bridge, localFonts,
 }) {
@@ -141,17 +152,14 @@ export function createPanel({
         <span class="kal-panel-version" id="kal-panel-version">${APP_STAGE_LABEL}</span>
         <span class="kal-panel-dirty" id="kal-panel-dirty" hidden>● 待保存预览</span>
       </span>
+      <button class="kal-btn kal-btn-ghost" data-act="factory-reset" title="一键恢复全部默认外观与排版">恢复默认</button>
       <button class="kal-btn kal-btn-ghost" data-act="reset" title="还原为打开时的状态">重置</button>
       <button class="kal-btn is-active" data-act="save" title="保存并应用">保存设置</button>
       <button class="kal-btn kal-btn-ghost" data-act="close" title="关闭">✕</button>
     </div>
     <div class="kal-panel-main">
       <div class="kal-panel-tabs" role="tablist" aria-label="设置分类">
-        <button type="button" class="kal-panel-tab is-on" data-tab="all">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1.2"/><rect x="9" y="2" width="5" height="5" rx="1.2"/><rect x="2" y="9" width="5" height="5" rx="1.2"/><rect x="9" y="9" width="5" height="5" rx="1.2"/></svg>
-          <span>全部设置</span>
-        </button>
-        <button type="button" class="kal-panel-tab" data-tab="general">
+        <button type="button" class="kal-panel-tab is-on" data-tab="general">
           <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="2.5" width="12.4" height="8.5" rx="1.4"/><path d="M5.5 13.5h5M8 11v2.5"/></svg>
           <span>桌面与自启</span>
         </button>
@@ -192,7 +200,7 @@ export function createPanel({
   };
   const controls = [];
   let epoch = 0, libraryRequest = 0, selectionRequest = 0, busy = false;
-  let activeTab = "all";
+  let activeTab = "general";
   let fontFilterQuery = "";
   let logFilter = "all";
   const LOG_STORAGE_KEY = "kal.operationLogs.v1";
@@ -236,21 +244,19 @@ export function createPanel({
 
   let advancedDrawer = null;
   function applyTabFilter(tab) {
-    activeTab = tab;
+    activeTab = tab || "general";
     el.querySelectorAll(".kal-panel-tab").forEach(btn => {
-      btn.classList.toggle("is-on", btn.dataset.tab === tab);
+      btn.classList.toggle("is-on", btn.dataset.tab === activeTab);
     });
     body.querySelectorAll(".kal-sec").forEach(sec => {
       const cat = sec.dataset.cat || "style";
-      if (tab === "all") {
-        sec.hidden = false;
-      } else if (tab === "logs") {
+      if (activeTab === "logs") {
         sec.hidden = cat !== "logs" && sec.id !== "kal-update-sec";
       } else {
-        sec.hidden = cat !== tab;
+        sec.hidden = cat !== activeTab;
       }
     });
-    if (tab === "color" && advancedDrawer) {
+    if (activeTab === "color" && advancedDrawer) {
       advancedDrawer.open = true;
     }
   }
@@ -286,12 +292,12 @@ export function createPanel({
         </div>
       </div>
       <div class="kal-dock-options" id="kal-dock-options">
-        <div class="kal-dock-subhead">桌面固定位置预设</div>
+        <div class="kal-dock-subhead">桌面固定位置预设（自动适配横屏 / 竖屏显示器）</div>
         <div class="kal-dock-pos-grid" id="kal-dock-pos-grid" role="group" aria-label="桌面固定位置预设"></div>
         <div class="kal-row kal-row-rich">
           <div class="kal-row-meta">
-            <label>屏幕宽度占比</label>
-            <small class="kal-row-desc">固定到左右桌面时的占屏比例</small>
+            <label>屏幕占屏比例</label>
+            <small class="kal-row-desc" id="kal-dock-ratio-desc">横屏控制宽度占比，竖屏自动转为高度占比</small>
           </div>
           <div class="kal-row-ctl">
             <div class="kal-chips" id="kal-dock-width-seg" role="group" aria-label="屏幕宽度占比"></div>
@@ -300,7 +306,7 @@ export function createPanel({
         <div class="kal-row kal-row-rich">
           <div class="kal-row-meta">
             <label for="kal-dock-monitor-select">目标显示器</label>
-            <small class="kal-row-desc">自适应多显示器尺寸、分辨率与缩放</small>
+            <small class="kal-row-desc" id="kal-dock-monitor-hint">自适应 24/27 寸、横竖屏方向、分辨率与多屏 DPI 缩放</small>
           </div>
           <div class="kal-row-ctl">
             <select id="kal-dock-monitor-select" aria-label="目标显示器">
@@ -308,10 +314,23 @@ export function createPanel({
             </select>
           </div>
         </div>
+        <div class="kal-row kal-row-rich kal-row-stack">
+          <div class="kal-row-meta">
+            <label for="kal-dock-alpha-range">固定背景透明度（壁纸常驻融合）</label>
+            <small class="kal-row-desc">设定恒定背景不透明度，固定在壁纸上常驻不动，鼠标移入移出不忽明忽暗</small>
+          </div>
+          <div class="kal-row-ctl kal-dock-alpha-ctl">
+            <div class="kal-chips" id="kal-dock-alpha-seg" role="group" aria-label="固定背景透明度预设"></div>
+            <div class="kal-dock-alpha-slider-wrap">
+              <input type="range" id="kal-dock-alpha-range" min="0" max="1" step="0.01" value="1" aria-label="固定背景不透明度滑杆" />
+              <span class="kal-val" id="kal-dock-alpha-val">100%</span>
+            </div>
+          </div>
+        </div>
         <div class="kal-row kal-row-rich">
           <div class="kal-row-meta">
-            <label for="kal-dock-fade-toggle">固定时闲置半透减淡</label>
-            <small class="kal-row-desc">鼠标移开日历时自动降至半透明，悬停恢复清晰</small>
+            <label for="kal-dock-fade-toggle">固定时闲置半透减淡（鼠标离开变淡）</label>
+            <small class="kal-row-desc">默认关闭：日历像壁纸一样保持上方设定透明度不动；开启后鼠标移开时额外减淡</small>
           </div>
           <div class="kal-row-ctl kal-row-ctl-end">
             <input type="checkbox" id="kal-dock-fade-toggle" class="kal-switch" aria-label="固定时闲置半透减淡" />
@@ -347,7 +366,7 @@ export function createPanel({
       <div class="kal-row kal-row-rich">
         <div class="kal-row-meta">
           <label>强调色快选</label>
-          <small class="kal-row-desc">一键切换主色调与今日高亮框</small>
+          <small class="kal-row-desc">一键切换主色调与今日高亮框（首项「星港靛蓝」为默认）</small>
         </div>
         <div class="kal-row-ctl">
           <div class="kal-accent-swatches" id="kal-accent-swatches" role="group" aria-label="强调色快选"></div>
@@ -363,6 +382,10 @@ export function createPanel({
   const dockPosGrid = generalSec.querySelector("#kal-dock-pos-grid");
   const dockWidthSeg = generalSec.querySelector("#kal-dock-width-seg");
   const dockMonitorSelect = generalSec.querySelector("#kal-dock-monitor-select");
+  const dockMonitorHint = generalSec.querySelector("#kal-dock-monitor-hint");
+  const dockAlphaSeg = generalSec.querySelector("#kal-dock-alpha-seg");
+  const dockAlphaRange = generalSec.querySelector("#kal-dock-alpha-range");
+  const dockAlphaVal = generalSec.querySelector("#kal-dock-alpha-val");
   const dockFadeToggle = generalSec.querySelector("#kal-dock-fade-toggle");
   const langSeg = generalSec.querySelector("#kal-lang-seg");
   const motionToggle = generalSec.querySelector("#kal-reduced-motion-toggle");
@@ -407,11 +430,51 @@ export function createPanel({
           widthRatio: opt.ratio,
         }, true);
         syncDockUi();
-        addLog("system", `调整桌面固定宽度占比为 ${opt.label}`);
+        addLog("system", `调整桌面固定占屏比例为 ${opt.label}`);
       }
     });
     dockWidthSeg.appendChild(btn);
   }
+
+  // 构建常驻壁纸融合透明度按钮与滑杆
+  for (const opt of WALL_ALPHA_OPTIONS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "kal-chip";
+    btn.dataset.wallAlpha = String(opt.alpha);
+    btn.textContent = opt.label;
+    btn.addEventListener("click", async () => {
+      const next = applySteadyWallAlpha(getTheme(), opt.alpha);
+      if (typeof onCommitQuickAlpha === "function") {
+        await onCommitQuickAlpha(next);
+        markDirty(false);
+      } else {
+        previewDraftChange(next);
+      }
+      sync();
+      addLog("theme", `设置固定背景常驻不透明度为 ${opt.label}`);
+    });
+    dockAlphaSeg?.appendChild(btn);
+  }
+
+  dockAlphaRange?.addEventListener("input", () => {
+    const alpha = Number(dockAlphaRange.value);
+    if (dockAlphaVal) dockAlphaVal.textContent = `${Math.round(alpha * 100)}%`;
+    const next = applySteadyWallAlpha(getTheme(), alpha);
+    previewDraftChange(next);
+    syncAuxStates(next);
+  });
+
+  dockAlphaRange?.addEventListener("change", async () => {
+    const alpha = Number(dockAlphaRange.value);
+    const next = applySteadyWallAlpha(getTheme(), alpha);
+    if (typeof onCommitQuickAlpha === "function") {
+      await onCommitQuickAlpha(next);
+      markDirty(false);
+    }
+    sync();
+    addLog("theme", `调节固定背景常驻不透明度为 ${Math.round(alpha * 100)}%`);
+  });
 
   dockToggle?.addEventListener("change", async () => {
     const docked = Boolean(dockToggle.checked);
@@ -436,7 +499,7 @@ export function createPanel({
     if (typeof onApplyDock === "function") {
       await onApplyDock({ idleFade }, false);
       syncDockUi();
-      addLog("system", idleFade ? "开启「固定时闲置半透减淡」" : "关闭「固定时闲置半透减淡」");
+      addLog("system", idleFade ? "开启「固定时闲置半透减淡」" : "关闭「固定时闲置半透减淡」（保持壁纸常驻透明度）");
     }
   });
 
@@ -460,22 +523,43 @@ export function createPanel({
       const r = Number(btn.dataset.dockWidth);
       btn.classList.toggle("is-on", Math.abs(r - wRatio) < 0.03);
     });
+    const curAlpha = Number(getPath(getTheme(), "color.bgAlpha") ?? 1);
+    if (dockAlphaRange) dockAlphaRange.value = String(curAlpha);
+    if (dockAlphaVal) dockAlphaVal.textContent = `${Math.round(curAlpha * 100)}%`;
+    dockAlphaSeg?.querySelectorAll("[data-wall-alpha]").forEach(btn => {
+      const a = Number(btn.dataset.wallAlpha);
+      btn.classList.toggle("is-on", Math.abs(a - curAlpha) < 0.04);
+    });
     if (dockMonitorSelect && Array.isArray(cfg.monitors)) {
       const currentVal = cfg.monitor || "";
       dockMonitorSelect.replaceChildren();
       const autoOpt = document.createElement("option");
       autoOpt.value = "";
-      autoOpt.textContent = "当前显示器（自动适配分辨率）";
+      autoOpt.textContent = "当前显示器（自动适配尺寸/横竖屏/分辨率）";
       dockMonitorSelect.appendChild(autoOpt);
       cfg.monitors.forEach((m, idx) => {
         const opt = document.createElement("option");
         opt.value = m.monitor || "";
+        const isPortrait = m.orientation === "portrait" || Number(m.pxH) > Number(m.pxW);
+        const orient = isPortrait ? "竖屏" : "横屏";
+        const primary = m.isPrimary ? "主屏·" : "";
         const diag = m.ppiKnown && m.diagonalIn ? ` · ${Number(m.diagonalIn).toFixed(1)}"` : "";
-        const scale = m.dpiScale ? ` · ${Math.round(m.dpiScale * 100)}%` : "";
-        opt.textContent = `显示器 ${idx + 1} (${m.pxW}×${m.pxH}${diag}${scale})`;
+        const scale = m.dpiScale ? ` · DPI ${Math.round(m.dpiScale * 100)}%` : "";
+        opt.textContent = `${primary}显示器 ${idx + 1} [${orient}] (${m.pxW}×${m.pxH}${diag}${scale})`;
         dockMonitorSelect.appendChild(opt);
       });
       dockMonitorSelect.value = currentVal;
+      if (dockMonitorHint) {
+        const activeMon = cfg.monitors.find(m => m.monitor === currentVal) || cfg.monitors[0];
+        if (activeMon) {
+          const isPortrait = activeMon.orientation === "portrait" || Number(activeMon.pxH) > Number(activeMon.pxW);
+          const orient = isPortrait ? "竖屏纵向" : "横屏横向";
+          const diag = activeMon.ppiKnown && activeMon.diagonalIn ? `${Number(activeMon.diagonalIn).toFixed(1)}寸 ` : "";
+          const dpiPct = activeMon.dpiScale ? `${Math.round(activeMon.dpiScale * 100)}%` : "100%";
+          const kScale = activeMon.kalScale ? `${Number(activeMon.kalScale).toFixed(2)}×` : "1.00×";
+          dockMonitorHint.textContent = `已识别：${diag}${orient} (${activeMon.pxW}×${activeMon.pxH} · 系统缩放 ${dpiPct} · 视觉配比 ${kScale})`;
+        }
+      }
     }
   }
 
@@ -565,6 +649,7 @@ export function createPanel({
     <div class="kal-sec-head-row">
       <div class="kal-sec-title">预设主题模板</div>
       <div class="kal-chips kal-sec-actions">
+        <button type="button" class="kal-chip" data-t="reset-theme" title="恢复系统默认主题（星港素纸）">恢复默认</button>
         <button type="button" class="kal-chip" data-t="copy">复制并编辑</button>
         <button type="button" class="kal-chip" data-t="export">导出草稿…</button>
         <button type="button" class="kal-chip" data-t="import">导入…</button>
@@ -574,6 +659,22 @@ export function createPanel({
   `;
   body.appendChild(libSec);
   const listEl = libSec.querySelector("#kal-theme-list");
+
+  async function applyThemeCardById(targetId) {
+    const selected = ++selectionRequest, opened = epoch;
+    const applied = await onApply(targetId);
+    if (!applied || selected !== selectionRequest || opened !== epoch || !isOpen()) return;
+    markDirty(true);
+    listEl.querySelectorAll(".kal-theme-card").forEach(x => {
+      const match = x.dataset.themeId === targetId;
+      x.classList.toggle("is-on", match);
+      x.setAttribute("aria-pressed", String(match));
+    });
+    reportEl.textContent = targetId === "default"
+      ? "已恢复系统默认主题「星港素纸」，点击「保存设置」即可生效。"
+      : "已预览主题配色，点击「保存设置」即可启用。";
+    sync();
+  }
 
   async function refreshLibrary() {
     const request = ++libraryRequest;
@@ -595,26 +696,40 @@ export function createPanel({
         c.dataset.themeId = r.id;
         c.dataset.builtin = String(builtin);
         c.setAttribute("aria-pressed", "false");
+        const isDefaultStarport = r.id === "default" || r.id === "builtin-starport-paper";
         const label = document.createElement("span");
-        label.textContent = r.name || r.id;
+        label.textContent = isDefaultStarport ? `${r.name || "星港素纸"}（默认）` : (r.name || r.id);
         const note = document.createElement("small");
-        note.textContent = r.id === "default" ? "系统默认" : (builtin ? "预设模板" : "我的主题");
+        note.textContent = isDefaultStarport ? "系统默认" : (builtin ? "预设模板" : "我的主题");
         const swatches = document.createElement("span");
         swatches.className = "kal-theme-colors";
         swatches.setAttribute("aria-hidden", "true");
         c.append(label, note, swatches);
-        c.title = `${r.mode === "light" ? "浅色" : "深色"} · 点击预览`;
-        c.addEventListener("click", async () => {
-          const selected = ++selectionRequest, opened = epoch;
-          const applied = await onApply(r.id);
-          if (!applied || selected !== selectionRequest || opened !== epoch || !isOpen()) return;
-          markDirty(true);
-          listEl.querySelectorAll(".kal-theme-card").forEach(x => {
-            x.classList.toggle("is-on", x === c);
-            x.setAttribute("aria-pressed", String(x === c));
+        if (!builtin) {
+          const delBtn = document.createElement("span");
+          delBtn.className = "kal-theme-del";
+          delBtn.textContent = "×";
+          delBtn.title = "删除此自定义主题";
+          delBtn.setAttribute("role", "button");
+          delBtn.setAttribute("aria-label", `删除主题 ${r.name || r.id}`);
+          delBtn.addEventListener("click", async ev => {
+            ev.stopPropagation();
+            try {
+              await bridge.themeDelete?.(r.id);
+              addLog("theme", `删除自定义主题「${r.name || r.id}」`);
+              await refreshLibrary();
+            } catch (err) {
+              reportEl.textContent = `删除失败：${err?.message || err}`;
+            }
           });
-          reportEl.textContent = builtin ? "已预览预设主题，点击「保存设置」即可启用。" : "主题配色已预览，保存后生效。";
-          sync();
+          c.appendChild(delBtn);
+        }
+        c.title = `${r.mode === "light" ? "浅色" : "深色"} · 点击预览（再次点击已选项可还原默认）`;
+        c.addEventListener("click", async () => {
+          const isAlreadyOn = c.classList.contains("is-on");
+          const targetId = (isAlreadyOn && !isDefaultStarport) ? "default" : r.id;
+          await applyThemeCardById(targetId);
+          addLog("theme", isDefaultStarport || targetId === "default" ? "恢复默认主题「星港素纸」" : `切换预设主题「${r.name || r.id}」`);
         });
         listEl.appendChild(c);
         bridge.themeLoad(r.id).then(t => {
@@ -634,8 +749,12 @@ export function createPanel({
     }
   }
 
+  libSec.querySelector('[data-t="reset-theme"]').addEventListener("click", async () => {
+    await applyThemeCardById("default");
+    addLog("theme", "恢复系统默认主题「星港素纸」");
+  });
   libSec.querySelector('[data-t="copy"]').addEventListener("click", () => {
-    previewDraftChange({ ...structuredClone(getTheme()), id: "", name: `${getTheme().name || "主题"} 副本` });
+    previewDraftChange({ ...structuredClone(getTheme()), id: "", presetId: "", name: `${getTheme().name || "主题"} 副本` });
     reportEl.textContent = "正在编辑副本；保存后生成独立主题。";
     sync();
   });
@@ -657,7 +776,12 @@ export function createPanel({
   recipeSec.className = "kal-sec";
   recipeSec.dataset.cat = "style";
   recipeSec.innerHTML = `
-    <div class="kal-sec-title">窗口质感模板</div>
+    <div class="kal-sec-head-row">
+      <div class="kal-sec-title">窗口质感模板</div>
+      <div class="kal-chips kal-sec-actions">
+        <button type="button" class="kal-chip" data-reset-sec="recipe" title="还原为温润实底（默认）">恢复默认</button>
+      </div>
+    </div>
     <div class="kal-recipe-grid" id="kal-recipe-grid"></div>
   `;
   const recipeGrid = recipeSec.querySelector("#kal-recipe-grid");
@@ -672,13 +796,24 @@ export function createPanel({
     desc.textContent = recipe.desc;
     btn.append(title, desc);
     btn.addEventListener("click", () => {
-      const next = applyStyleRecipe(getTheme(), recipe.id);
+      const isAlreadyOn = btn.classList.contains("is-on");
+      const targetId = (isAlreadyOn && recipe.id !== "paper") ? "paper" : recipe.id;
+      const targetObj = STYLE_RECIPES.find(r => r.id === targetId) || recipe;
+      const next = applyStyleRecipe(getTheme(), targetId);
       previewDraftChange(next);
-      reportEl.textContent = `已预览「${recipe.name || recipe.label}」质感模板，点击「保存设置」即可生效。`;
+      reportEl.textContent = `已预览「${targetObj.name || targetObj.label}」质感模板，点击「保存设置」即可生效。`;
       sync();
+      addLog("theme", `切换窗口质感为「${targetObj.name || targetObj.label}」`);
     });
     recipeGrid.appendChild(btn);
   }
+  recipeSec.querySelector('[data-reset-sec="recipe"]')?.addEventListener("click", () => {
+    const next = applyStyleRecipe(getTheme(), "paper");
+    previewDraftChange(next);
+    reportEl.textContent = "已恢复默认「温润实底（默认）」窗口质感。";
+    sync();
+    addLog("theme", "恢复默认窗口质感「温润实底」");
+  });
   body.appendChild(recipeSec);
 
   // ---------------------------------------------------------- 4. 日历排版与字体模板
@@ -687,7 +822,12 @@ export function createPanel({
   contentPresetSec.className = "kal-sec";
   contentPresetSec.dataset.cat = "type";
   contentPresetSec.innerHTML = `
-    <div class="kal-sec-title">日历排版模板</div>
+    <div class="kal-sec-head-row">
+      <div class="kal-sec-title">日历排版模板</div>
+      <div class="kal-chips kal-sec-actions">
+        <button type="button" class="kal-chip" data-reset-sec="content" title="还原为标准全显（默认）">恢复默认</button>
+      </div>
+    </div>
     <div class="kal-recipe-grid" id="kal-content-preset-grid"></div>
   `;
   const contentPresetGrid = contentPresetSec.querySelector("#kal-content-preset-grid");
@@ -702,21 +842,37 @@ export function createPanel({
     desc.textContent = cp.desc;
     btn.append(title, desc);
     btn.addEventListener("click", () => {
-      const next = applyContentPreset(getTheme(), cp.id);
+      const isAlreadyOn = btn.classList.contains("is-on");
+      const targetId = (isAlreadyOn && cp.id !== "standard-wrap") ? "standard-wrap" : cp.id;
+      const targetObj = CONTENT_PRESETS.find(c => c.id === targetId) || cp;
+      const next = applyContentPreset(getTheme(), targetId);
       previewDraftChange(next);
-      reportEl.textContent = `已应用「${cp.name}」排版模板。`;
+      reportEl.textContent = `已应用「${targetObj.name}」排版模板。`;
       sync();
+      addLog("theme", `切换日历排版模板为「${targetObj.name}」`);
     });
     contentPresetGrid.appendChild(btn);
   }
+  contentPresetSec.querySelector('[data-reset-sec="content"]')?.addEventListener("click", () => {
+    const next = applyContentPreset(getTheme(), "standard-wrap");
+    previewDraftChange(next);
+    reportEl.textContent = "已恢复默认「标准全显（默认）」排版模板。";
+    sync();
+    addLog("theme", "恢复默认日历排版「标准全显」");
+  });
   body.appendChild(contentPresetSec);
 
   const fontSec = document.createElement("div");
   fontSec.className = "kal-sec";
   fontSec.dataset.cat = "type";
-  const fontTitle = document.createElement("div");
-  fontTitle.className = "kal-sec-title";
-  fontTitle.textContent = "精选字体模板";
+  const fontHeadRow = document.createElement("div");
+  fontHeadRow.className = "kal-sec-head-row";
+  fontHeadRow.innerHTML = `
+    <div class="kal-sec-title">精选字体模板</div>
+    <div class="kal-chips kal-sec-actions">
+      <button type="button" class="kal-chip" data-reset-sec="font" title="还原为现代雅黑（默认）">恢复默认</button>
+    </div>
+  `;
 
   const presetWrap = document.createElement("div");
   presetWrap.className = "kal-chips";
@@ -728,14 +884,14 @@ export function createPanel({
     chip.textContent = preset.name || preset.label;
     chip.title = preset.desc;
     chip.addEventListener("click", async () => {
-      let next = setPath(getTheme(), "type.familyUi", preset.familyUi);
-      next = setPath(next, "type.familyNum", preset.familyNum);
-      if (preset.weight) {
-        next = setPath(next, "type.weight", { ...next.type.weight, ...preset.weight });
-      }
+      const isAlreadyOn = chip.classList.contains("is-on");
+      const targetId = (isAlreadyOn && preset.id !== "default-ui") ? "default-ui" : preset.id;
+      const targetObj = FONT_PRESETS.find(f => f.id === targetId) || preset;
+      const next = applyFontPreset(getTheme(), targetId);
       previewDraftChange(next);
-      fontStatus.textContent = `已切换字体模板「${preset.name || preset.label}」。`;
+      fontStatus.textContent = `已切换字体模板「${targetObj.name || targetObj.label}」。`;
       sync();
+      addLog("theme", `切换精选字体为「${targetObj.name || targetObj.label}」`);
       try {
         await fonts.sync(next);
       } catch (err) {
@@ -744,6 +900,18 @@ export function createPanel({
     });
     presetWrap.appendChild(chip);
   }
+  fontHeadRow.querySelector('[data-reset-sec="font"]')?.addEventListener("click", async () => {
+    const next = applyFontPreset(getTheme(), "default-ui");
+    previewDraftChange(next);
+    fontStatus.textContent = "已恢复默认字体「现代雅黑（默认）」。";
+    sync();
+    addLog("theme", "恢复默认字体「现代雅黑」");
+    try {
+      await fonts.sync(next);
+    } catch (err) {
+      setFontError(err);
+    }
+  });
 
   const fontActions = document.createElement("div");
   fontActions.className = "kal-font-actions";
@@ -771,14 +939,21 @@ export function createPanel({
   fontStatus.className = "kal-note";
   fontStatus.setAttribute("role", "status");
   fontStatus.setAttribute("aria-live", "polite");
-  fontSec.append(fontTitle, presetWrap, fontActions, fontStatus);
-  body.appendChild(fontSec);
-
   function setFontError(err) { fontStatus.textContent = `字体加载失败：${err?.message || err}`; }
   const fonts = localFonts || createLocalFonts({ bridge, getTheme, onError: setFontError });
   const fontControls = [];
   let fontCatalog = null;
   let fontCatalogRequest = null;
+
+  const fontSelectGroup = document.createElement("div");
+  fontSelectGroup.className = "kal-card-group";
+  fontSelectGroup.append(
+    buildRow({ label: "系统界面字体", path: "type.familyUi", type: "font" }),
+    buildRow({ label: "日期数字字体", path: "type.familyNum", type: "font" })
+  );
+
+  fontSec.append(fontHeadRow, presetWrap, fontActions, fontSelectGroup, fontStatus);
+  body.appendChild(fontSec);
 
   async function refreshFonts(force = false) {
     if (!force && fontCatalog) return;
@@ -827,12 +1002,17 @@ export function createPanel({
   backdropSec.className = "kal-sec";
   backdropSec.dataset.cat = "backdrop";
   backdropSec.innerHTML = `
-    <div class="kal-sec-title">艺术背景画布与壁纸</div>
+    <div class="kal-sec-head-row">
+      <div class="kal-sec-title">艺术背景画布与壁纸</div>
+      <div class="kal-chips kal-sec-actions">
+        <button type="button" class="kal-chip" data-reset-sec="backdrop" title="关闭背景画布，还原默认无背景状态">恢复默认</button>
+      </div>
+    </div>
     <div class="kal-backdrop-grid" id="kal-art-grid"></div>
-    <div class="kal-chips">
+    <div class="kal-chips" id="kal-wp-mode-chips">
+      <button type="button" class="kal-chip" data-wp="clear-bg">无背景图（默认）</button>
       <button type="button" class="kal-chip" data-wp="pick-bg">选择本地壁纸</button>
       <button type="button" class="kal-chip" data-wp="desktop-bg">同步桌面壁纸</button>
-      <button type="button" class="kal-chip" data-wp="clear-bg">纯透明/无背景图</button>
     </div>
     <div class="kal-note" id="kal-wp-status"></div>
   `;
@@ -840,12 +1020,22 @@ export function createPanel({
   const artGrid = backdropSec.querySelector("#kal-art-grid");
   const wpStatus = backdropSec.querySelector("#kal-wp-status");
 
+  function resetBackdropToDefault() {
+    const next = setPath(getTheme(), "backdrop", structuredClone(DEFAULT_THEME.backdrop));
+    previewDraftChange(next);
+    wpStatus.textContent = "已恢复默认无背景图状态。";
+    sync();
+    addLog("theme", "恢复默认无背景画布");
+  }
+
+  backdropSec.querySelector('[data-reset-sec="backdrop"]')?.addEventListener("click", resetBackdropToDefault);
+
   for (const art of ART_BACKDROPS) {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "kal-backdrop-card";
     card.dataset.artId = art.id;
-    card.title = art.desc || art.name;
+    card.title = `${art.desc || art.name}（再次点击已选项可关闭背景图）`;
     const thumb = document.createElement("span");
     thumb.className = "kal-backdrop-thumb";
     thumb.dataset.art = art.id;
@@ -853,14 +1043,19 @@ export function createPanel({
     label.textContent = art.name || art.label;
     card.append(thumb, label);
     card.addEventListener("click", () => {
+      if (card.classList.contains("is-on")) {
+        resetBackdropToDefault();
+        return;
+      }
       let next = setPath(getTheme(), "backdrop.mode", "art");
       next = setPath(next, "backdrop.preset", art.id);
       if ((next.backdrop?.opacity ?? 0) < 0.25) {
         next = setPath(next, "backdrop.opacity", 0.72);
       }
       previewDraftChange(next);
-      wpStatus.textContent = `已启用艺术画布「${art.name || art.label}」。`;
+      wpStatus.textContent = `已启用艺术画布「${art.name || art.label}」（再次点击或点「无背景图（默认）」可还原）。`;
       sync();
+      addLog("theme", `启用艺术背景画布「${art.name || art.label}」`);
     });
     artGrid.appendChild(card);
   }
@@ -878,6 +1073,7 @@ export function createPanel({
     previewDraftChange(next);
     wpStatus.textContent = `已加载壁纸：${path}`;
     sync();
+    addLog("theme", "加载自定义背景图片");
   });
 
   backdropSec.querySelector('[data-wp="desktop-bg"]').addEventListener("click", () => {
@@ -888,20 +1084,21 @@ export function createPanel({
     previewDraftChange(next);
     wpStatus.textContent = "已切换为系统桌面壁纸背景层。";
     sync();
+    addLog("theme", "切换为系统桌面壁纸背景层");
   });
 
-  backdropSec.querySelector('[data-wp="clear-bg"]').addEventListener("click", () => {
-    const next = setPath(getTheme(), "backdrop.mode", "none");
-    previewDraftChange(next);
-    wpStatus.textContent = "已关闭背景图。";
-    sync();
-  });
+  backdropSec.querySelector('[data-wp="clear-bg"]').addEventListener("click", resetBackdropToDefault);
 
   const genSec = document.createElement("div");
   genSec.className = "kal-sec";
   genSec.dataset.cat = "backdrop";
   genSec.innerHTML = `
-    <div class="kal-sec-title">壁纸智能取色</div>
+    <div class="kal-sec-head-row">
+      <div class="kal-sec-title">壁纸智能取色</div>
+      <div class="kal-chips kal-sec-actions">
+        <button type="button" class="kal-chip" data-reset-sec="palette" title="还原为星港素纸默认配色">恢复默认配色</button>
+      </div>
+    </div>
     <div class="kal-chips">
       <span class="kal-chip" data-mode="auto">自动明暗</span>
       <span class="kal-chip" data-mode="dark">深色</span>
@@ -915,6 +1112,11 @@ export function createPanel({
   body.appendChild(genSec);
   const reportEl = genSec.querySelector("#kal-report");
   let forcedMode = null;
+
+  genSec.querySelector('[data-reset-sec="palette"]')?.addEventListener("click", async () => {
+    await applyThemeCardById("default");
+    addLog("theme", "从壁纸取色恢复为默认配色「星港素纸」");
+  });
 
   genSec.querySelectorAll(".kal-chip[data-mode]").forEach(c => {
     c.addEventListener("click", () => {
@@ -941,14 +1143,14 @@ export function createPanel({
     });
   });
 
-  // ---------------------------------------------------------- 6. 高级参数微调（默认折叠，避免界面繁杂）
+  // ---------------------------------------------------------- 6. 高级参数微调
 
   advancedDrawer = document.createElement("details");
   advancedDrawer.className = "kal-sec kal-advanced-drawer";
   advancedDrawer.dataset.cat = "color";
   const advSummary = document.createElement("summary");
   advSummary.className = "kal-advanced-summary";
-  advSummary.textContent = "展开高级参数与色彩细节微调（可选）";
+  advSummary.textContent = "高级参数与色彩细节微调（每组均可独立恢复默认）";
   const advBody = document.createElement("div");
   advBody.className = "kal-advanced-body";
   advancedDrawer.append(advSummary, advBody);
@@ -956,10 +1158,29 @@ export function createPanel({
   for (const [title, , rows] of SECTIONS) {
     const subSec = document.createElement("div");
     subSec.className = "kal-adv-group";
+    const headRow = document.createElement("div");
+    headRow.className = "kal-sec-head-row";
     const h = document.createElement("div");
     h.className = "kal-sec-title";
     h.textContent = title;
-    subSec.appendChild(h);
+    const resetGroupBtn = document.createElement("button");
+    resetGroupBtn.type = "button";
+    resetGroupBtn.className = "kal-chip kal-adv-reset-btn";
+    resetGroupBtn.textContent = "恢复本组默认";
+    resetGroupBtn.addEventListener("click", () => {
+      let next = structuredClone(getTheme());
+      for (const r of rows) {
+        const defVal = getPath(DEFAULT_THEME, r.path);
+        if (defVal !== undefined) {
+          next = setPath(next, r.path, structuredClone(defVal));
+        }
+      }
+      previewDraftChange(next);
+      sync();
+      addLog("theme", `恢复高级微调分组「${title}」为默认值`);
+    });
+    headRow.append(h, resetGroupBtn);
+    subSec.appendChild(headRow);
 
     const group = document.createElement("div");
     group.className = "kal-card-group";
@@ -976,7 +1197,7 @@ export function createPanel({
   const updateSec = document.createElement("div");
   updateSec.className = "kal-sec";
   updateSec.id = "kal-update-sec";
-  updateSec.dataset.cat = "general";
+  updateSec.dataset.cat = "logs";
   updateSec.innerHTML = `
     <div class="kal-sec-title">版本与检查更新</div>
     <div class="kal-card-group kal-update-card">
@@ -1325,11 +1546,16 @@ export function createPanel({
   }
 
   function syncAuxStates(t) {
-    const isArt = t?.backdrop?.mode === "art";
+    const bdMode = t?.backdrop?.mode || "none";
+    const isArt = bdMode === "art";
     const preset = t?.backdrop?.preset || "aurora";
     artGrid.querySelectorAll(".kal-backdrop-card").forEach(card => {
       card.classList.toggle("is-on", isArt && card.dataset.artId === preset);
     });
+    backdropSec.querySelector('[data-wp="clear-bg"]')?.classList.toggle("is-on", bdMode === "none");
+    backdropSec.querySelector('[data-wp="pick-bg"]')?.classList.toggle("is-on", bdMode === "custom");
+    backdropSec.querySelector('[data-wp="desktop-bg"]')?.classList.toggle("is-on", bdMode === "desktop");
+
     const curLang = getPath(t, "layout.language") || "zh-CN";
     langSeg?.querySelectorAll("[data-lang]").forEach(btn => {
       btn.classList.toggle("is-on", btn.dataset.lang === curLang);
@@ -1342,13 +1568,39 @@ export function createPanel({
       btn.classList.toggle("is-on", String(btn.dataset.accentHex || "").toUpperCase() === curAccent);
     });
 
-    // 同步预设主题模板卡片选中态（严格按 themeId 唯一匹配）
-    const curThemeId = t?.id || "default";
+    // 同步常驻壁纸融合透明度控件
+    const curAlpha = Number(getPath(t, "color.bgAlpha") ?? 1);
+    if (dockAlphaRange) dockAlphaRange.value = String(curAlpha);
+    if (dockAlphaVal) dockAlphaVal.textContent = `${Math.round(curAlpha * 100)}%`;
+    dockAlphaSeg?.querySelectorAll("[data-wall-alpha]").forEach(btn => {
+      const a = Number(btn.dataset.wallAlpha);
+      btn.classList.toggle("is-on", Math.abs(a - curAlpha) < 0.04);
+    });
+
+    // 同步预设主题模板卡片选中态（支持 presetId 或 id 或名称匹配）
+    const curThemeId = t?.presetId || t?.id || "";
+    const isStarportActive = curThemeId === "default" || curThemeId === "builtin-starport-paper";
+    let matchedCard = false;
     listEl?.querySelectorAll(".kal-theme-card").forEach(card => {
-      const active = (card.dataset.themeId || "") === curThemeId;
+      const tid = card.dataset.themeId || "";
+      const active = isStarportActive
+        ? (tid === "default" || tid === "builtin-starport-paper")
+        : Boolean(curThemeId && tid === curThemeId);
+      if (active) matchedCard = true;
       card.classList.toggle("is-on", active);
       card.setAttribute("aria-pressed", String(active));
     });
+    if (!matchedCard && listEl) {
+      const fallbackStarport = (t?.name === DEFAULT_THEME.name || !t?.name);
+      listEl.querySelectorAll(".kal-theme-card").forEach(card => {
+        const tid = card.dataset.themeId || "";
+        const labelText = card.querySelector("span")?.textContent || "";
+        const active = (fallbackStarport && (tid === "default" || tid === "builtin-starport-paper")) ||
+          Boolean(t?.name && labelText.startsWith(t.name));
+        card.classList.toggle("is-on", Boolean(active));
+        card.setAttribute("aria-pressed", String(Boolean(active)));
+      });
+    }
 
     // 同步窗口质感模板卡片选中态
     recipeGrid?.querySelectorAll(".kal-recipe-card").forEach(card => {
@@ -1398,6 +1650,7 @@ export function createPanel({
     epoch++; onOpen?.();
     markDirty(false);
     document.body.classList.add("kal-panel-open");
+    applyTabFilter(activeTab);
     sync();
     refreshLibrary();
     refreshAutostartUi();
@@ -1408,17 +1661,38 @@ export function createPanel({
     await onCommit();
     markDirty(false);
   });
-  el.querySelector('[data-act="reset"]').addEventListener("click", () => {
+  el.querySelector('[data-act="factory-reset"]')?.addEventListener("click", async () => {
     selectionRequest++;
+    if (typeof onFactoryReset === "function") {
+      await onFactoryReset();
+    } else {
+      previewDraftChange(structuredClone(DEFAULT_THEME));
+    }
     markDirty(false);
-    onReset();
+    sync();
+    addLog("theme", "一键恢复全部外观与排版为系统默认状态");
+  });
+  el.querySelector('[data-act="reset"]').addEventListener("click", async () => {
+    selectionRequest++;
+    const wasDirty = dirtyEl && !dirtyEl.hidden;
+    markDirty(false);
+    if (wasDirty) {
+      onReset();
+    } else if (typeof onFactoryReset === "function") {
+      await onFactoryReset();
+      sync();
+      addLog("theme", "重置外观与排版为初始默认状态");
+    } else {
+      onReset();
+    }
   });
 
+  applyTabFilter(activeTab);
   refreshAutostartUi();
   syncDockUi();
 
   return {
-    el, sync, syncDockUi, refreshLibrary, close, open,
+    el, sync, syncDockUi, refreshLibrary, applyTabFilter, close, open,
     addLog,
     getLogs: () => operationLogs.slice(),
     clearLogs: () => { operationLogs = []; persistLogs(); renderLogList(); },

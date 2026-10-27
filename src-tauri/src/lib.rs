@@ -432,6 +432,8 @@ struct DesktopDockOpts {
     pub width_ratio: f32,
     #[serde(default = "default_height_ratio")]
     pub height_ratio: f32,
+    #[serde(default)]
+    pub idle_fade: bool,
     #[serde(default = "default_true")]
     pub restore_on_unlock: bool,
 }
@@ -444,6 +446,7 @@ struct DesktopDockStatus {
     pub monitor: String,
     pub width_ratio: f32,
     pub height_ratio: f32,
+    pub idle_fade: bool,
     pub monitors: Vec<display::DisplayInfo>,
     pub applied_rect: [i32; 4],
 }
@@ -461,6 +464,7 @@ fn read_dock_opts_from_settings() -> DesktopDockOpts {
         monitor: String::new(),
         width_ratio: default_width_ratio(),
         height_ratio: default_height_ratio(),
+        idle_fade: false,
         restore_on_unlock: true,
     }
 }
@@ -515,75 +519,159 @@ fn apply_dock_layout(win: &WebviewWindow, opts: &DesktopDockOpts, is_startup: bo
         }
 
         let work = target_mon.work;
-        let work_w = (work[2] - work[0]).max(640);
+        let work_w = (work[2] - work[0]).max(480);
         let work_h = (work[3] - work[1]).max(480);
-        let margin = (14.0 * target_mon.dpi_scale.max(1.0)).round() as i32;
+        let is_portrait = work_h > work_w;
+        let margin = (14.0 * target_mon.dpi_scale.clamp(1.0, 2.25)).round() as i32;
+        let avail_w = (work_w - margin * 2).max(460);
+        let avail_h = (work_h - margin * 2).max(460);
         let w_ratio = opts.width_ratio.clamp(0.38, 0.94);
         let h_ratio = opts.height_ratio.clamp(0.55, 0.98);
 
-        let (x, y, w, h) = match opts.position.as_str() {
-            "current" => {
-                let pos = win.outer_position().unwrap_or(tauri::PhysicalPosition::new(work[0] + margin, work[1] + margin));
-                let size = win.outer_size().unwrap_or(tauri::PhysicalSize::new(1080, 760));
-                (pos.x, pos.y, size.width as i32, size.height as i32)
+        let (x, y, w, h) = if opts.position == "current" {
+            let pos = win.outer_position().unwrap_or(tauri::PhysicalPosition::new(work[0] + margin, work[1] + margin));
+            let size = win.outer_size().unwrap_or(tauri::PhysicalSize::new(1080, 760));
+            let cw = (size.width as i32).clamp(460, work_w);
+            let ch = (size.height as i32).clamp(420, work_h);
+            let cx = if display::on_any_monitor(pos.x + cw / 2, pos.y + ch / 2) {
+                pos.x
+            } else {
+                work[0] + (work_w - cw) / 2
+            };
+            let cy = if display::on_any_monitor(pos.x + cw / 2, pos.y + ch / 2) {
+                pos.y
+            } else {
+                work[1] + (work_h - ch) / 2
+            };
+            (cx, cy, cw, ch)
+        } else if is_portrait {
+            // 竖屏显示器适配（如 1080x1920、1440x2560 纵向副屏）：
+            // 横向保证 7 列月历充分铺开，将画面占比映射为竖向高度占比
+            let min_pw = 460.min(avail_w);
+            let min_ph = 480.min(avail_h);
+            match opts.position.as_str() {
+                "left-icon-safe" => {
+                    let icon_col = (88.0 * target_mon.dpi_scale.clamp(1.0, 2.0)).round() as i32;
+                    let safe_w = (work_w - icon_col - margin).max(min_pw);
+                    let w = safe_w.clamp(min_pw, avail_w);
+                    let h = (((avail_h as f32) * w_ratio.clamp(0.48, 0.92)).round() as i32).clamp(min_ph, avail_h);
+                    let x = work[0] + icon_col;
+                    let y = work[1] + margin;
+                    (x, y, w, h)
+                }
+                "left-compact" => {
+                    let w = (((avail_w as f32) * 0.92).round() as i32).clamp(min_pw, avail_w);
+                    let h = (((avail_h as f32) * w_ratio.min(0.58)).round() as i32).clamp(min_ph, avail_h);
+                    let x = work[0] + (work_w - w) / 2;
+                    let y = work[1] + margin;
+                    (x, y, w, h)
+                }
+                "right-desktop" | "bottom-desktop" => {
+                    let w = avail_w;
+                    let h = (((avail_h as f32) * w_ratio.clamp(0.48, 0.92)).round() as i32).clamp(min_ph, avail_h);
+                    let x = work[0] + (work_w - w) / 2;
+                    let y = (work[3] - h - margin).max(work[1] + margin);
+                    (x, y, w, h)
+                }
+                "center-desktop" => {
+                    let w = avail_w;
+                    let h = (((avail_h as f32) * w_ratio.clamp(0.50, 0.92)).round() as i32).clamp(min_ph, avail_h);
+                    let x = work[0] + (work_w - w) / 2;
+                    let y = work[1] + (work_h - h) / 2;
+                    (x, y, w, h)
+                }
+                _ => {
+                    // "left-desktop" / "top-desktop": 竖屏上半区主力铺展
+                    let w = avail_w;
+                    let h = (((avail_h as f32) * w_ratio.clamp(0.48, 0.92)).round() as i32).clamp(min_ph, avail_h);
+                    let x = work[0] + (work_w - w) / 2;
+                    let y = work[1] + margin;
+                    (x, y, w, h)
+                }
             }
-            "left-compact" => {
-                let w = ((work_w as f32) * w_ratio.min(0.55)).round() as i32;
-                let h = (((work_h - margin * 2) as f32) * h_ratio.min(0.86)).round() as i32;
-                let x = work[0] + margin;
-                let y = work[1] + (work_h - h) / 2;
-                (x, y, w.max(680), h.max(500))
-            }
-            "left-icon-safe" => {
-                let icon_col = (92.0 * target_mon.dpi_scale.max(1.0)).round() as i32;
-                let avail_w = (work_w - icon_col - margin).max(640);
-                let w = ((avail_w as f32) * w_ratio).round() as i32;
-                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
-                let x = work[0] + icon_col;
-                let y = work[1] + (work_h - h) / 2;
-                (x, y, w.max(680), h.max(520))
-            }
-            "right-desktop" => {
-                let w = ((work_w as f32) * w_ratio).round() as i32;
-                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
-                let x = (work[2] - w - margin).max(work[0]);
-                let y = work[1] + (work_h - h) / 2;
-                (x, y, w.max(680), h.max(520))
-            }
-            "center-desktop" => {
-                let w = ((work_w as f32) * w_ratio).round() as i32;
-                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
-                let x = work[0] + (work_w - w) / 2;
-                let y = work[1] + (work_h - h) / 2;
-                (x, y, w.max(680), h.max(520))
-            }
-            _ => {
-                // Default: "left-desktop" — 占据屏幕左侧（仿原版 DesktopCal 经典左侧铺展）
-                let w = ((work_w as f32) * w_ratio).round() as i32;
-                let h = (((work_h - margin * 2) as f32) * h_ratio).round() as i32;
-                let x = work[0] + margin;
-                let y = work[1] + (work_h - h) / 2;
-                (x, y, w.max(680), h.max(520))
+        } else {
+            // 横屏显示器适配（24寸 1080p、27寸 2K/4K、带鱼屏等）
+            let min_w = ((680.0 * target_mon.dpi_scale.clamp(0.85, 1.35)).round() as i32).min(avail_w);
+            let min_h = ((500.0 * target_mon.dpi_scale.clamp(0.85, 1.35)).round() as i32).min(avail_h);
+            match opts.position.as_str() {
+                "left-compact" => {
+                    let w = (((work_w as f32) * w_ratio.min(0.55)).round() as i32).clamp(min_w, avail_w);
+                    let h = (((avail_h as f32) * h_ratio.min(0.86)).round() as i32).clamp(min_h, avail_h);
+                    let x = work[0] + margin;
+                    let y = work[1] + (work_h - h) / 2;
+                    (x, y, w, h)
+                }
+                "left-icon-safe" => {
+                    let icon_col = (92.0 * target_mon.dpi_scale.clamp(1.0, 2.25)).round() as i32;
+                    let safe_avail_w = (work_w - icon_col - margin).max(480);
+                    let w = (((safe_avail_w as f32) * w_ratio).round() as i32).clamp(min_w.min(safe_avail_w), safe_avail_w);
+                    let h = (((avail_h as f32) * h_ratio).round() as i32).clamp(min_h, avail_h);
+                    let x = work[0] + icon_col;
+                    let y = work[1] + (work_h - h) / 2;
+                    (x, y, w, h)
+                }
+                "right-desktop" => {
+                    let w = (((work_w as f32) * w_ratio).round() as i32).clamp(min_w, avail_w);
+                    let h = (((avail_h as f32) * h_ratio).round() as i32).clamp(min_h, avail_h);
+                    let x = (work[2] - w - margin).max(work[0] + margin);
+                    let y = work[1] + (work_h - h) / 2;
+                    (x, y, w, h)
+                }
+                "center-desktop" => {
+                    let w = (((work_w as f32) * w_ratio).round() as i32).clamp(min_w, avail_w);
+                    let h = (((avail_h as f32) * h_ratio).round() as i32).clamp(min_h, avail_h);
+                    let x = work[0] + (work_w - w) / 2;
+                    let y = work[1] + (work_h - h) / 2;
+                    (x, y, w, h)
+                }
+                "top-desktop" => {
+                    let w = (((work_w as f32) * w_ratio.max(0.75)).round() as i32).clamp(min_w, avail_w);
+                    let h = (((avail_h as f32) * w_ratio.clamp(0.50, 0.85)).round() as i32).clamp(min_h, avail_h);
+                    let x = work[0] + (work_w - w) / 2;
+                    let y = work[1] + margin;
+                    (x, y, w, h)
+                }
+                "bottom-desktop" => {
+                    let w = (((work_w as f32) * w_ratio.max(0.75)).round() as i32).clamp(min_w, avail_w);
+                    let h = (((avail_h as f32) * w_ratio.clamp(0.50, 0.85)).round() as i32).clamp(min_h, avail_h);
+                    let x = work[0] + (work_w - w) / 2;
+                    let y = (work[3] - h - margin).max(work[1] + margin);
+                    (x, y, w, h)
+                }
+                _ => {
+                    // Default: "left-desktop" — 占据屏幕左侧（仿原版 DesktopCal 经典左侧铺展）
+                    let w = (((work_w as f32) * w_ratio).round() as i32).clamp(min_w, avail_w);
+                    let h = (((avail_h as f32) * h_ratio).round() as i32).clamp(min_h, avail_h);
+                    let x = work[0] + margin;
+                    let y = work[1] + (work_h - h) / 2;
+                    (x, y, w, h)
+                }
             }
         };
 
         let _ = win.set_resizable(true);
-        let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
-        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        if embed::set_window_rect(hwnd, x, y, w, h, true).is_err() {
+            let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+            let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+        }
         let _ = win.set_resizable(false);
+        let _ = win.set_skip_taskbar(true);
         let _ = embed::apply_anchored(hwnd);
         let _ = embed::set_desktop_owner(hwnd);
         applied_rect = [x, y, w, h];
     } else {
         embed::clear_desktop_owner(hwnd);
+        let _ = win.set_skip_taskbar(false);
         let _ = win.set_resizable(true);
         if prev_docked && opts.restore_on_unlock && !is_startup {
             if let Some(uw) = unlocked_window_patch.as_object() {
                 let g = |k: &str| uw.get(k).and_then(|v| v.as_i64()).map(|v| v as i32);
                 if let (Some(x), Some(y), Some(cw), Some(ch)) = (g("x"), g("y"), g("w"), g("h")) {
                     if cw >= 320 && ch >= 240 && display::on_any_monitor(x + cw / 2, y + ch / 2) {
-                        let _ = win.set_size(tauri::PhysicalSize::new(cw as u32, ch as u32));
-                        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+                        if embed::set_window_rect(hwnd, x, y, cw, ch, false).is_err() {
+                            let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+                            let _ = win.set_size(tauri::PhysicalSize::new(cw as u32, ch as u32));
+                        }
                         applied_rect = [x, y, cw, ch];
                     }
                 }
@@ -604,6 +692,7 @@ fn apply_dock_layout(win: &WebviewWindow, opts: &DesktopDockOpts, is_startup: bo
                 "monitor": opts.monitor,
                 "widthRatio": opts.width_ratio.clamp(0.38, 0.94),
                 "heightRatio": opts.height_ratio.clamp(0.55, 0.98),
+                "idleFade": opts.idle_fade,
             },
             "unlockedWindow": unlocked_window_patch,
         }
@@ -615,6 +704,7 @@ fn apply_dock_layout(win: &WebviewWindow, opts: &DesktopDockOpts, is_startup: bo
         monitor: if opts.monitor.is_empty() { target_mon.monitor.clone() } else { opts.monitor.clone() },
         width_ratio: opts.width_ratio.clamp(0.38, 0.94),
         height_ratio: opts.height_ratio.clamp(0.55, 0.98),
+        idle_fade: opts.idle_fade,
         monitors,
         applied_rect,
     }
@@ -635,6 +725,7 @@ fn desktop_dock_status(window: tauri::WebviewWindow) -> DesktopDockStatus {
         monitor: opts.monitor,
         width_ratio: opts.width_ratio,
         height_ratio: opts.height_ratio,
+        idle_fade: opts.idle_fade,
         monitors,
         applied_rect,
     }
@@ -935,13 +1026,27 @@ fn restore_geometry(win: &WebviewWindow) {
         println!("[kal] 上次位置 ({x},{y}) 不在任何显示器上，忽略");
         return;
     }
-    let _ = win.set_size(tauri::PhysicalSize::new(cw as u32, ch as u32));
-    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+    let hwnd = hwnd_of(win);
+    if embed::set_window_rect(hwnd, x, y, cw, ch, false).is_err() {
+        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+        let _ = win.set_size(tauri::PhysicalSize::new(cw as u32, ch as u32));
+    }
 }
 
 #[tauri::command]
 fn window_geometry_save(window: tauri::WebviewWindow) {
     save_geometry(&window);
+}
+
+#[tauri::command]
+fn window_minimize(window: tauri::WebviewWindow) {
+    let _ = window.minimize();
+}
+
+#[tauri::command]
+fn window_hide_to_tray(window: tauri::WebviewWindow) {
+    save_geometry(&window);
+    let _ = window.hide();
 }
 
 #[tauri::command]
@@ -1092,6 +1197,8 @@ pub fn run() {
             desktop_status,
             desktop_set_hotkey,
             window_geometry_save,
+            window_minimize,
+            window_hide_to_tray,
             window_set_click_through,
             desk_report,
             attach_desktop,
@@ -1112,6 +1219,7 @@ pub fn run() {
                     let _ = apply_dock_layout(&win, &dock_opts, true);
                 } else {
                     embed::clear_desktop_owner(hwnd);
+                    let _ = win.set_skip_taskbar(false);
                 }
                 println!("[kal] 桌面结构: {}", embed::describe(&scan));
                 let dsp = display::for_window(hwnd);
