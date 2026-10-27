@@ -214,7 +214,7 @@ pub struct Layout {
 
 impl Default for FontSizes {
     fn default() -> Self {
-        Self { day: 15.0, sub: 12.5, task: 11.5, title: 30.0, head: 11.0, agenda: 13.0 }
+        Self { day: 16.5, sub: 13.0, task: 13.0, title: 30.0, head: 12.5, agenda: 14.0 }
     }
 }
 impl Default for FontWeights {

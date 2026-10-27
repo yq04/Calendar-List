@@ -259,7 +259,7 @@ body.kal-no-lunar .kal-lunar-year { display: none; }
   flex: 1 1 auto;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(6, 1fr);
+  grid-template-rows: repeat(var(--kal-grid-rows, 5), minmax(0, 1fr));
   gap: var(--kal-cell-gap);
   min-height: 0;
 }

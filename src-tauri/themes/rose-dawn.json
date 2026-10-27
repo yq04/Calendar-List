@@ -40,12 +40,12 @@
     "familyNum": "\"Segoe UI Variable Display\", \"Segoe UI\", \"Microsoft YaHei UI\", system-ui, sans-serif",
     "stretch": 100,
     "size": {
-      "day": 15,
-      "sub": 12.5,
-      "task": 11.5,
+      "day": 16.5,
+      "sub": 13,
+      "task": 13,
       "title": 30,
-      "head": 11,
-      "agenda": 13
+      "head": 12.5,
+      "agenda": 14
     },
     "weight": {
       "day": 600,

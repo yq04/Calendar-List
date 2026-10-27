@@ -757,7 +757,7 @@ async function run() {
         `(() => {
           const cells = document.querySelectorAll("#kal-grid .kal-cell");
           const agendaReady = document.querySelectorAll("#kal-agenda-list li").length > 0;
-          if (cells.length !== 42 || !agendaReady) return null;
+          if ((cells.length !== 35 && cells.length !== 42) || !agendaReady) return null;
           const calls = window.__KAL_TEST__.getCalls();
           return {
             cellCount: cells.length,
@@ -780,7 +780,7 @@ async function run() {
       })()`);
       await cdp.waitFor(`!document.body.classList.contains("kal-agenda-hidden")`, "测试1后开启右侧栏以执行后续右侧栏用例");
       const ok =
-        bootInfo.cellCount === 42 &&
+        (bootInfo.cellCount === 35 || bootInfo.cellCount === 42) &&
         bootInfo.isShellMode === true &&
         bootInfo.appInfoCalled === true &&
         bootInfo.defaultAgendaHidden === true &&
@@ -1904,7 +1904,7 @@ async function run() {
         p4Res.hasHeaderSvg === true &&
         p4Res.hasAlmanacDetail === true &&
         p4Res.isWeekView === true &&
-        p4Res.totalCells === 42 &&
+        (p4Res.totalCells === 35 || p4Res.totalCells === 42) &&
         p4Res.currentWeekCells === 7 &&
         p4Res.restoredMonthView === true &&
         p4Res.icsValid === true &&
@@ -2674,10 +2674,24 @@ async function run() {
         document.querySelector('.kal-cell[data-key="2026-10-22"]')?.click();
         await new Promise(r => setTimeout(r, 80));
 
-        // Check Issue 2: 2nd and 3rd tasks inside .kal-cell.is-multi-tasks.is-crowded allow wrapping (pre-wrap)
+        // Check Issue 2: 2nd and 3rd tasks inside .kal-cell.is-multi-tasks.is-crowded allow full multi-line wrapping with NO 2-line limit and NO ellipsis
         const cell22 = document.querySelector('.kal-cell[data-key="2026-10-22"]');
         const cellTasks = Array.from(cell22?.querySelectorAll(".kal-task") || []);
-        const allTasksWrap = cellTasks.length >= 3 && cellTasks.every(t => getComputedStyle(t).whiteSpace === "pre-wrap");
+        const allTasksWrap = cellTasks.length >= 3 && cellTasks.every(t => {
+          const cs = getComputedStyle(t);
+          return cs.whiteSpace === "pre-wrap" && cs.webkitLineClamp === "none" && cs.overflow === "visible";
+        });
+        const octCellCount = document.querySelectorAll("#kal-grid .kal-cell").length;
+        const octIsFiveRows = octCellCount === 35;
+        const taskFontSizePx = cellTasks[0] ? parseFloat(getComputedStyle(cellTasks[0]).fontSize) : 0;
+
+        // Check duplicate Starport theme cards: open Settings -> refresh library -> verify 0 non-builtin Starport cards
+        document.getElementById("kal-settings")?.click();
+        await new Promise(r => setTimeout(r, 80));
+        const dupStarportCards = Array.from(document.querySelectorAll('#kal-theme-list .kal-theme-card[data-builtin="false"]'))
+          .filter(c => (c.querySelector("span")?.textContent || "").includes("星港素纸") && !(c.querySelector("span")?.textContent || "").includes("副本"));
+        const noDuplicateStarportCards = dupStarportCards.length === 0;
+        document.querySelector('.kal-panel [data-act="close"]')?.click();
 
         // Check Issue 1: .kal-agenda-dot and .kal-agenda-text first-line vertical center alignment
         const firstLi = document.querySelector("#kal-agenda-list li:not(.is-empty)");
@@ -2730,6 +2744,9 @@ async function run() {
           upcomingItemCount,
           hasRelBadge: relBadgeText.length > 0,
           deletedViaEmptyEnter,
+          noDuplicateStarportCards,
+          octIsFiveRows,
+          taskFontSizePx,
         };
       })()`);
       const ok =
@@ -2742,7 +2759,10 @@ async function run() {
         p13Res.upcomingVisible === true &&
         p13Res.upcomingItemCount >= 1 &&
         p13Res.hasRelBadge === true &&
-        p13Res.deletedViaEmptyEnter === true;
+        p13Res.deletedViaEmptyEnter === true &&
+        p13Res.noDuplicateStarportCards === true &&
+        p13Res.octIsFiveRows === true &&
+        p13Res.taskFontSizePx >= 12.5;
       record("P13-v011-ux-and-sidebar-toggle", "默认仅日历与右侧栏开关/圆圈与文字垂直对齐/多任务自动换行/精简顶底栏与近期安排/左格清空回车删除", ok, JSON.stringify(p13Res));
     } catch (err) {
       record("P13-v011-ux-and-sidebar-toggle", "默认仅日历与右侧栏开关/圆圈与文字垂直对齐/多任务自动换行/精简顶底栏与近期安排/左格清空回车删除", false, err.message);

@@ -54,6 +54,17 @@ export function getMonthMatrix(year, month, weekStart = 1) {
   return cells;
 }
 
+/**
+ * 裁剪月历末尾完全属于下个月的多余整周行（默认保留 5 行 = 35 格；仅当当月跨入第 6 周时保留 6 行）
+ */
+export function trimRedundantMonthRows(cells) {
+  if (!Array.isArray(cells) || cells.length < 42) return cells || [];
+  if (cells.slice(35, 42).every(c => !c.inMonth)) {
+    return cells.slice(0, 35);
+  }
+  return cells;
+}
+
 /** 提取 42 格矩阵实际覆盖到的所有 (year, month) 组合，用于跨月邻格数据加载 */
 export function getMatrixMonths(cells) {
   const seen = new Set();
@@ -233,7 +244,8 @@ export function buildMarkdownCalendar({
   const includeAgendaDetail = options.includeAgenda !== false && options.includeAgendaDetail !== false;
   const includeStats = options.includeStats !== false;
 
-  const cells = getMonthMatrix(year, month, weekStart);
+  const cells = trimRedundantMonthRows(getMonthMatrix(year, month, weekStart));
+  const rowCount = Math.ceil(cells.length / 7);
   const ymStr = `${year}-${pad(month + 1)}`;
   const lunarYearStr = typeof getGanZhiYear === "function" ? getGanZhiYear(year) : "";
 
@@ -287,7 +299,7 @@ export function buildMarkdownCalendar({
   md.push(`| ${wLabels.join(" | ")} |`);
   md.push(`| ${wLabels.map(() => ":---").join(" | ")} |`);
 
-  for (let row = 0; row < 6; row++) {
+  for (let row = 0; row < rowCount; row++) {
     const rowCells = cells.slice(row * 7, row * 7 + 7);
     const cols = rowCells.map(c => {
       const cy = c.date.getFullYear();
@@ -362,7 +374,8 @@ export function buildPrintableCalendarHtml({
   const includeAlmanac = options.includeStats !== false && options.includeAlmanac !== false;
   const includeCompleted = options.includeCompleted !== false;
 
-  const cells = getMonthMatrix(year, month, weekStart);
+  const cells = trimRedundantMonthRows(getMonthMatrix(year, month, weekStart));
+  const rowCount = Math.ceil(cells.length / 7);
   const lunarYearStr = typeof getGanZhiYear === "function" ? getGanZhiYear(year) : "";
 
   let totalTasks = 0;
@@ -542,7 +555,7 @@ export function buildPrintableCalendarHtml({
     width: 100%;
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    grid-template-rows: repeat(6, minmax(0, 1fr));
+    grid-template-rows: repeat(${rowCount}, minmax(0, 1fr));
     gap: 1.2mm;
   }
   .kal-print-cell {

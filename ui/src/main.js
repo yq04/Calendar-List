@@ -8,7 +8,7 @@
 //   main.js       状态机 + 渲染 + 事件接线（本文件）
 
 import {
-  getMonthMatrix, weekHeadLabels, addMonths, pad,
+  getMonthMatrix, trimRedundantMonthRows, weekHeadLabels, addMonths, pad,
   formatAgendaDate, groupByDay, pickDefaultSelected, fromKey, toKey, parseQuickEntry,
   buildIcsCalendar, buildMarkdownCalendar, buildPrintableCalendarHtml,
 } from "./calendar.js";
@@ -182,9 +182,9 @@ function invalidateReads() {
   agendaGuard.next();
 }
 
-/** One inclusive query for the visible 42 dates, including adjacent-month cells. */
+/** One inclusive query for the visible month dates (default 5 rows = 35 cells), including adjacent-month cells. */
 async function matrixMapForView(year, month, weekStart) {
-  const cells = getMonthMatrix(year, month, weekStart);
+  const cells = trimRedundantMonthRows(getMonthMatrix(year, month, weekStart));
   const start = cells[0].key, end = cells[cells.length - 1].key;
   const events = await bridge.rangeEvents(start, end);
   return { cells, byDay: groupByDay(events), partialError: null };
@@ -903,6 +903,8 @@ function renderGrid(cells, byDay) {
   state.lastByDay = byDay;
   const grid = el["kal-grid"];
   grid.innerHTML = "";
+  const rowCount = Math.max(1, Math.ceil((cells?.length || 35) / 7));
+  grid.style.setProperty("--kal-grid-rows", String(rowCount));
   const frag = document.createDocumentFragment();
   const selIdx = Math.max(0, cells.findIndex(c => c.key === state.selected));
   const selRow = Math.floor(selIdx / 7);
@@ -977,9 +979,7 @@ function renderGrid(cells, byDay) {
       cell.classList.add("is-crowded");
     }
     if (list.length) {
-      const cellLimit = state.viewMode === "week"
-        ? taskLimit
-        : Math.min(taskLimit, 4);
+      const cellLimit = taskLimit;
       const tasks = document.createElement("div");
       tasks.className = "kal-tasks";
       list.slice(0, cellLimit).forEach((ev, idx) => {
@@ -1744,7 +1744,7 @@ async function render() {
   renderWeekHead();
   syncQuickDraft();
 
-  let cells = getMonthMatrix(state.year, state.month, state.weekStart);
+  let cells = trimRedundantMonthRows(getMonthMatrix(state.year, state.month, state.weekStart));
   let byDay = new Map();
   try {
     const res = await matrixMapForView(state.year, state.month, state.weekStart);
@@ -1928,7 +1928,7 @@ const searchScheduler = createSearchScheduler({
 
 function selectDay(key) {
   const [year, month] = key.split("-").map(Number);
-  const sameView = state.year === year && state.month === month - 1 && el["kal-grid"].children.length === 42;
+  const sameView = state.year === year && state.month === month - 1 && Array.from(el["kal-grid"].children).some(n => n.dataset.key === key);
   state.selected = key;
   const [y, m] = key.split("-").map(Number);
   state.year = y;
@@ -2597,6 +2597,43 @@ function syncQuickGlassBtn(t = state.draft) {
     : "一键切换全透明底 / 还原初始状态";
 }
 
+const BUILTIN_THEME_NAMES = new Set([
+  "星港素纸", "星港素纸（默认）", "深海夜航", "摩卡紫蓝", "摩卡夜读",
+  "极地霜夜", "极北霜蓝", "松影晨纸", "晨纸微光", "默认",
+]);
+
+function cleanupSupersededUserTheme(prevTheme, nextSaved) {
+  const prevId = prevTheme?.id || "";
+  const nextId = nextSaved?.id || "";
+  if (!prevId || prevId === nextId || !prevId.startsWith("user-")) return;
+  const prevName = (prevTheme?.name || "").trim();
+  const nextName = (nextSaved?.name || "").trim();
+  if (BUILTIN_THEME_NAMES.has(prevName) || (prevName && prevName === nextName)) {
+    bridge?.themeDelete?.(prevId).catch(() => {});
+  }
+}
+
+async function cleanupRedundantUserThemes() {
+  if (!bridge?.themeList || !bridge?.themeDelete) return;
+  try {
+    const list = await bridge.themeList();
+    const activeId = state.applied?.id || "";
+    const seenCustomNames = new Set();
+    for (const r of list || []) {
+      const builtin = r.builtin === true || r.id === "default" || r.id?.startsWith("builtin-");
+      if (builtin) continue;
+      const cleanName = (r.name || "").trim();
+      if (BUILTIN_THEME_NAMES.has(cleanName) || seenCustomNames.has(cleanName)) {
+        if (r.id && r.id !== activeId) {
+          bridge.themeDelete(r.id).catch(() => {});
+        }
+        continue;
+      }
+      if (cleanName) seenCustomNames.add(cleanName);
+    }
+  } catch { /* ignore */ }
+}
+
 async function toggleQuickGlass() {
   const isTransparent = (state.draft?.color?.bgAlpha ?? 1) <= 0.08;
   let next;
@@ -2616,9 +2653,11 @@ async function toggleQuickGlass() {
   previewDraft(next);
   panel?.sync();
   try {
+    const prevTheme = state.applied ? structuredClone(state.applied) : null;
     const toCommit = structuredClone(next);
     toCommit.id = "";
     const saved = normalizeTheme(await bridge.themeCommit(toCommit));
+    cleanupSupersededUserTheme(prevTheme, saved);
     saved.presetId = next.presetId || state.applied?.presetId || state.applied?.id || "";
     state.applied = saved;
     themeSnapshot = structuredClone(saved);
@@ -2724,9 +2763,11 @@ async function factoryResetTheme() {
   quickGlassSnapshot = null;
   const needsRender = applyDraft(fresh);
   try {
+    const prevTheme = state.applied ? structuredClone(state.applied) : null;
     const toSave = structuredClone(fresh);
     toSave.id = "";
     const saved = normalizeTheme(await bridge.themeCommit(toSave));
+    cleanupSupersededUserTheme(prevTheme, saved);
     saved.presetId = "default";
     state.applied = saved;
     state.draft = structuredClone(saved);
@@ -2746,9 +2787,11 @@ async function commitQuickAlpha(nextTheme) {
   norm.presetId = norm.presetId || state.draft?.presetId || state.applied?.presetId || "";
   const needsRender = applyDraft(norm);
   try {
+    const prevTheme = state.applied ? structuredClone(state.applied) : null;
     const toSave = structuredClone(norm);
     toSave.id = "";
     const saved = normalizeTheme(await bridge.themeCommit(toSave));
+    cleanupSupersededUserTheme(prevTheme, saved);
     saved.presetId = norm.presetId;
     state.applied = saved;
     state.draft = structuredClone(saved);
@@ -2788,11 +2831,13 @@ async function saveTheme() {
   themeGuard.next();
   panel?.setBusy(true);
   const presetId = state.draft?.presetId || "";
+  const prevTheme = state.applied ? structuredClone(state.applied) : null;
   const t = structuredClone(state.draft);
   t.id = "";
   t.name = t.name || `主题 ${new Date().toLocaleString("zh-CN")}`;
   try {
     const saved = normalizeTheme(await bridge.themeCommit(t));
+    cleanupSupersededUserTheme(prevTheme, saved);
     saved.presetId = presetId;
     const needsRender = applyDraft(saved);
     state.applied = saved;
@@ -2889,14 +2934,33 @@ async function boot() {
       bridge.settingsGet ? bridge.settingsGet().catch(() => ({})) : Promise.resolve({}),
     ]);
     if (t && t.color) {
-      if (!bootSettings?.ui?.agendaDefaultMigratedV011 && bootSettings?.ui?.showAgendaSidebar !== true) {
-        t.layout = { ...(t.layout || {}), agenda: "hidden" };
-        bridge.settingsSet?.({ ui: { agendaDefaultMigratedV011: true, showAgendaSidebar: false } }).catch(() => {});
-        bridge.themeCommit?.(t).catch(() => {});
+      if (!bootSettings?.ui?.agendaDefaultMigratedV011) {
+        if (bootSettings?.ui?.showAgendaSidebar !== true) {
+          t.layout = { ...(t.layout || {}), agenda: "hidden" };
+        }
+        if (t.layout?.taskWrap === "clamp2") {
+          t.layout = { ...(t.layout || {}), taskWrap: "wrap" };
+        }
+        bridge.settingsSet?.({
+          ui: {
+            agendaDefaultMigratedV011: true,
+            showAgendaSidebar: Boolean(bootSettings?.ui?.showAgendaSidebar),
+          },
+        }).catch(() => {});
       } else if (typeof bootSettings?.ui?.showAgendaSidebar === "boolean") {
         t.layout = { ...(t.layout || {}), agenda: bootSettings.ui.showAgendaSidebar ? "side" : "hidden" };
       }
+      if (!bootSettings?.ui?.fontSizeMigratedV011) {
+        if ((t.type?.size?.task ?? 11.5) <= 11.5) {
+          t.type = {
+            ...(t.type || {}),
+            size: { ...(t.type?.size || {}), ...DEFAULT_THEME.type.size },
+          };
+        }
+        bridge.settingsSet?.({ ui: { fontSizeMigratedV011: true } }).catch(() => {});
+      }
       applyApplied(t);
+      cleanupRedundantUserThemes();
     }
   } catch { /* 用默认 */ }
   await localFonts.refresh().catch(() => {});

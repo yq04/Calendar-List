@@ -107,7 +107,7 @@ ok("非数值 size 被拒", toCssValue("size", "abc") === null);
 ok("空字符串 str 被拒", toCssValue("str", "") === null);
 
 // getPath / setPath
-ok("getPath 深取", getPath(DEFAULT_THEME, "type.size.day") === 15);
+ok("getPath 深取", getPath(DEFAULT_THEME, "type.size.day") === 16.5);
 ok("getPath 缺失返回 undefined", getPath(DEFAULT_THEME, "a.b.c") === undefined);
 const t2 = setPath(DEFAULT_THEME, "color.accent", "#FF0000");
 ok("setPath 生效", getPath(t2, "color.accent") === "#FF0000");

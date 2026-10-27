@@ -722,6 +722,11 @@ export function createPanel({
     sync();
   }
 
+  const BUILTIN_THEME_NAMES = new Set([
+    "星港素纸", "星港素纸（默认）", "深海夜航", "摩卡紫蓝", "摩卡夜读",
+    "极地霜夜", "极北霜蓝", "松影晨纸", "晨纸微光", "默认",
+  ]);
+
   async function refreshLibrary() {
     const request = ++libraryRequest;
     try {
@@ -734,8 +739,20 @@ export function createPanel({
         note.textContent = "暂无已保存主题";
         listEl.append(note);
       }
+      const activeId = getTheme()?.id || "";
+      const seenCustomNames = new Set();
       for (const r of list) {
         const builtin = r.builtin === true || r.id === "default" || r.id.startsWith("builtin-");
+        if (!builtin) {
+          const cleanName = (r.name || "").trim();
+          if (BUILTIN_THEME_NAMES.has(cleanName) || seenCustomNames.has(cleanName)) {
+            if (r.id && r.id !== activeId) {
+              bridge.themeDelete?.(r.id).catch(() => {});
+            }
+            continue;
+          }
+          if (cleanName) seenCustomNames.add(cleanName);
+        }
         const c = document.createElement("button");
         c.type = "button";
         c.className = "kal-chip kal-theme-card";
