@@ -333,8 +333,8 @@ export const DEFAULT_THEME = {
 };
 
 /** 当前软件发布版本号与阶段标识 */
-export const APP_VERSION = "0.1.1";
-export const APP_STAGE_LABEL = "v0.1.1";
+export const APP_VERSION = "0.1.2";
+export const APP_STAGE_LABEL = "v0.1.2";
 
 /** 6 款内置零依赖高颜值艺术壁纸预设 */
 export const ART_BACKDROPS = [
@@ -542,10 +542,10 @@ export const CONTENT_PRESETS = [
   },
   {
     id: "clamp-2",
-    name: "两行精简",
-    desc: "超长事项最多折两行，兼顾完整度与整洁度",
+    name: "均衡紧凑",
+    desc: "紧凑字号，安排内容自动换行完整显示",
     patch: {
-      "layout.taskWrap": "clamp2",
+      "layout.taskWrap": "wrap",
       "layout.maxTasks": 5,
       "layout.bulletStyle": "dot",
       "type.size.day": 15.5,
@@ -555,10 +555,10 @@ export const CONTENT_PRESETS = [
   },
   {
     id: "compact-single",
-    name: "高密单行",
-    desc: "单行省略排版，单格可容纳最多 6 条日程",
+    name: "紧凑编号",
+    desc: "紧凑字号与编号，安排内容自动换行完整显示",
     patch: {
-      "layout.taskWrap": "nowrap",
+      "layout.taskWrap": "wrap",
       "layout.maxTasks": 6,
       "layout.bulletStyle": "number",
       "type.size.day": 15,

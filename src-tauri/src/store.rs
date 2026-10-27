@@ -15,6 +15,17 @@ static JSON_WRITE: Mutex<()> = Mutex::new(());
 static LOG_WRITE: Mutex<()> = Mutex::new(());
 static FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static APP_DIR_STATE: OnceLock<(PathBuf, bool)> = OnceLock::new();
+#[cfg(test)]
+pub(crate) static INSTALL_REGISTRY_READS: AtomicU64 = AtomicU64::new(0);
+#[cfg(test)]
+pub(crate) static INSTALL_REGISTRY_WRITES: AtomicU64 = AtomicU64::new(0);
+
+/// Explicit data roots are isolated: never migrate, discover or mirror production data.
+/// This must be selected before the process first resolves its storage directory.
+pub fn is_isolated() -> bool {
+    std::env::var("KAL_ISOLATED").ok().as_deref() == Some("1")
+        || std::env::var_os("KAL_DATA_DIR").is_some_and(|v| !v.is_empty())
+}
 
 pub(crate) fn unique_suffix() -> String {
     let nanos = std::time::SystemTime::now()
@@ -87,22 +98,23 @@ fn probe_dir_writable(dir: &Path) -> bool {
     }
 }
 
-fn copy_dir_missing_recursive(src: &Path, dst: &Path) {
+fn copy_dir_missing_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     if !src.is_dir() || src == dst {
-        return;
+        return Ok(());
     }
-    let _ = std::fs::create_dir_all(dst);
-    let entries = match std::fs::read_dir(src) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
+    std::fs::create_dir_all(dst).map_err(|e| e.to_string())?;
+    let entries = std::fs::read_dir(src).map_err(|e| e.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
         if name_str.eq_ignore_ascii_case("webview2")
             || name_str.ends_with(".tmp")
             || name_str.starts_with(".kal_probe_")
+            || name_str.ends_with("-wal")
+            || name_str.ends_with("-shm")
+            || name_str.ends_with("-journal")
         {
             continue;
         }
@@ -111,55 +123,73 @@ fn copy_dir_missing_recursive(src: &Path, dst: &Path) {
         }
         let target = dst.join(&name);
         if path.is_dir() {
-            copy_dir_missing_recursive(&path, &target);
+            copy_dir_missing_recursive(&path, &target)?;
         } else if path.is_file() && !target.exists() {
-            let _ = std::fs::copy(&path, &target);
+            let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
+            if matches!(extension.as_str(), "db" | "sqlite" | "sqlite3") {
+                crate::db::snapshot_sqlite(&path, &target)?;
+            } else {
+                std::fs::copy(&path, &target).map_err(|e| e.to_string())?;
+            }
         }
     }
+    Ok(())
 }
 
 #[cfg(windows)]
-fn sync_install_registry_and_prev_dir(target_data_dir: &Path, exe_dir: Option<&Path>) -> Option<PathBuf> {
+fn previous_install_data_dir(target_data_dir: &Path) -> Option<PathBuf> {
+    #[cfg(test)]
+    INSTALL_REGISTRY_READS.fetch_add(1, Ordering::Relaxed);
     use winreg::enums::*;
     use winreg::RegKey;
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let mut prev_data_dir: Option<PathBuf> = None;
-    if let Ok((key, _)) = hkcu.create_subkey("Software\\kal\\CalendarList") {
-        if let Ok(existing) = key.get_value::<String, _>("DataDir") {
-            let p = PathBuf::from(existing.trim());
-            if !existing.trim().is_empty() && p != target_data_dir {
-                prev_data_dir = Some(p);
-            }
-        }
-        let _ = key.set_value("DataDir", &target_data_dir.to_string_lossy().to_string());
-        if let Some(inst) = exe_dir {
-            let cur_inst: String = key.get_value("").unwrap_or_default();
-            if cur_inst.trim().is_empty() {
-                let _ = key.set_value("", &inst.to_string_lossy().to_string());
-            }
+    let key = hkcu.open_subkey("Software\\kal\\CalendarList").ok()?;
+    let existing = key.get_value::<String, _>("DataDir").ok()?;
+    let previous = PathBuf::from(existing.trim());
+    (!existing.trim().is_empty() && previous != target_data_dir).then_some(previous)
+}
+
+#[cfg(windows)]
+fn register_install_data_dir(target_data_dir: &Path, exe_dir: Option<&Path>) -> Result<(), String> {
+    #[cfg(test)]
+    INSTALL_REGISTRY_WRITES.fetch_add(1, Ordering::Relaxed);
+    use winreg::enums::*;
+    use winreg::RegKey;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (key, _) = hkcu.create_subkey("Software\\kal\\CalendarList").map_err(|e| e.to_string())?;
+    key.set_value("DataDir", &target_data_dir.to_string_lossy().to_string()).map_err(|e| e.to_string())?;
+    if let Some(inst) = exe_dir {
+        let cur_inst: String = key.get_value("").unwrap_or_default();
+        if cur_inst.trim().is_empty() {
+            key.set_value("", &inst.to_string_lossy().to_string()).map_err(|e| e.to_string())?;
         }
     }
-    prev_data_dir
+    Ok(())
 }
 
 #[cfg(not(windows))]
-fn sync_install_registry_and_prev_dir(_target_data_dir: &Path, _exe_dir: Option<&Path>) -> Option<PathBuf> {
+fn previous_install_data_dir(_target_data_dir: &Path) -> Option<PathBuf> {
     None
 }
 
-fn migrate_existing_data_into(target_data_dir: &Path, exe_dir: Option<&Path>) {
+#[cfg(not(windows))]
+fn register_install_data_dir(_target_data_dir: &Path, _exe_dir: Option<&Path>) -> Result<(), String> { Ok(()) }
+
+fn migrate_existing_data_into(target_data_dir: &Path, exe_dir: Option<&Path>) -> Result<(), String> {
     for sub in ["themes", "fonts", "sandbox", "backups", "logs"] {
-        let _ = std::fs::create_dir_all(target_data_dir.join(sub));
+        std::fs::create_dir_all(target_data_dir.join(sub)).map_err(|e| e.to_string())?;
     }
-    if let Some(prev) = sync_install_registry_and_prev_dir(target_data_dir, exe_dir) {
+    if let Some(prev) = previous_install_data_dir(target_data_dir) {
         if prev.exists() && prev != target_data_dir {
-            copy_dir_missing_recursive(&prev, target_data_dir);
+            copy_dir_missing_recursive(&prev, target_data_dir)?;
         }
     }
     let legacy = legacy_appdata_dir();
     if legacy.exists() && legacy != target_data_dir {
-        copy_dir_missing_recursive(&legacy, target_data_dir);
+        copy_dir_missing_recursive(&legacy, target_data_dir)?;
     }
+    // Publish the installation pointer only after all required copies succeeded.
+    register_install_data_dir(target_data_dir, exe_dir)
 }
 
 fn resolve_app_dir_state() -> &'static (PathBuf, bool) {
@@ -167,16 +197,23 @@ fn resolve_app_dir_state() -> &'static (PathBuf, bool) {
         if let Some(custom) = std::env::var_os("KAL_DATA_DIR") {
             let custom_path = PathBuf::from(custom);
             if !custom_path.as_os_str().is_empty() && probe_dir_writable(&custom_path) {
-                migrate_existing_data_into(&custom_path, None);
-                return (custom_path, true);
+                return (custom_path, false);
             }
+            // An invalid explicit root must never silently fall through to user data.
+            panic!("KAL_DATA_DIR must be a nonempty writable directory");
+        }
+        if is_isolated() {
+            let isolated = std::env::temp_dir().join(format!("kal-isolated-{}", unique_suffix()));
+            assert!(probe_dir_writable(&isolated), "cannot create isolated data directory");
+            return (isolated, false);
         }
         if let Ok(exe) = std::env::current_exe() {
             if let Some(exe_dir) = exe.parent() {
                 if !is_cargo_build_dir(exe_dir) {
                     let portable_data = exe_dir.join("data");
                     if probe_dir_writable(&portable_data) {
-                        migrate_existing_data_into(&portable_data, Some(exe_dir));
+                        migrate_existing_data_into(&portable_data, Some(exe_dir))
+                            .unwrap_or_else(|error| panic!("数据迁移失败，已停止启动以保留来源数据: {error}"));
                         return (portable_data, true);
                     }
                 }
@@ -295,7 +332,7 @@ pub fn read_settings() -> Value {
     read_json(&settings_path()).unwrap_or_else(|| {
         // 若安装目录首次读取为空但旧版 %APPDATA%\Kal\settings.json 存在，则自动继承并落盘
         let legacy_path = legacy_appdata_dir().join("settings.json");
-        if legacy_path != settings_path() {
+        if !is_isolated() && legacy_path != settings_path() {
             if let Some(v) = read_json(&legacy_path) {
                 let _ = write_json(&settings_path(), &v);
                 return v;
@@ -318,7 +355,7 @@ pub(crate) fn merge_settings_at(path: &PathBuf, patch: &Value) -> Result<Value, 
         Ok(s) => serde_json::from_str::<Value>(&s).map_err(|_| "现有设置不是合法 JSON，未覆盖")?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             let legacy_path = legacy_appdata_dir().join("settings.json");
-            if path == &settings_path() && legacy_path != *path {
+            if !is_isolated() && path == &settings_path() && legacy_path != *path {
                 read_json(&legacy_path)
                     .unwrap_or_else(|| serde_json::json!({ "schema": "kal.settings/1" }))
             } else {

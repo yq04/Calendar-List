@@ -46,10 +46,8 @@ const SECTIONS = [
   ["日历功能与常用开关", "style", [
     { label: "明暗模式", path: "mode", type: "seg", options: [["dark", "深色"], ["light", "浅色"]] },
     { label: "网格样式", path: "shape.gridStyle", type: "seg", options: [["cards", "卡片"], ["grid", "线框"], ["minimal", "极简"]] },
-    { label: "任务换行", path: "layout.taskWrap", type: "seg", options: [["wrap", "自动换行"], ["clamp2", "两行"], ["nowrap", "单行"]] },
     { label: "周起始", path: "layout.weekStart", type: "seg", options: [["1", "周一"], ["0", "周日"]], num: true },
     { label: "项目符号", path: "layout.bulletStyle", type: "seg", options: [["dot", "圆点"], ["number", "编号"], ["none", "无"]] },
-    { label: "格内行数", path: "layout.maxTasks", type: "range", ...SIZE(1, 10, 1), fmt: v => `${v} 项` },
     { label: "右侧展示栏", path: "layout.agenda", type: "seg", options: [["hidden", "隐藏（默认）"], ["side", "显示"]] },
     { label: "休/班角标", path: "layout.showHolidayBadge", type: "bool" },
     { label: "显示农历", path: "layout.showLunar", type: "bool" },
@@ -150,12 +148,13 @@ export function createPanel({
       <span class="kal-panel-title">
         设置中心
         <span class="kal-panel-version" id="kal-panel-version">${APP_STAGE_LABEL}</span>
-        <span class="kal-panel-dirty" id="kal-panel-dirty" hidden>● 待保存预览</span>
+        <span class="kal-panel-dirty" id="kal-panel-dirty" hidden>● 预览中 · 未保存</span>
       </span>
+      <button class="kal-btn kal-btn-ghost" data-act="peek" aria-pressed="false" title="查看日历的实时效果">查看日历</button>
       <button class="kal-btn kal-btn-ghost" data-act="factory-reset" title="一键恢复全部默认外观与排版">恢复默认</button>
-      <button class="kal-btn kal-btn-ghost" data-act="reset" title="还原为打开时的状态">重置</button>
+      <button class="kal-btn kal-btn-ghost" data-act="reset" title="有未保存修改时还原为打开时状态；否则恢复默认">重置</button>
       <button class="kal-btn is-active" data-act="save" title="保存并应用">保存设置</button>
-      <button class="kal-btn kal-btn-ghost" data-act="close" title="关闭">✕</button>
+      <button class="kal-btn kal-btn-ghost" data-act="close" title="关闭并放弃未保存的预览" aria-label="关闭并放弃未保存的预览">✕</button>
     </div>
     <div class="kal-panel-main">
       <div class="kal-panel-tabs" role="tablist" aria-label="设置分类">
@@ -191,7 +190,9 @@ export function createPanel({
 
   const body = el.querySelector("#kal-panel-body");
   const dirtyEl = el.querySelector("#kal-panel-dirty");
+  let dirtyRevision = 0;
   const markDirty = (dirty = true) => {
+    if (dirty) dirtyRevision++;
     if (dirtyEl) dirtyEl.hidden = !dirty;
   };
   const previewDraftChange = next => {
@@ -338,7 +339,7 @@ export function createPanel({
         <div class="kal-row kal-row-rich kal-row-stack">
           <div class="kal-row-meta">
             <label for="kal-dock-alpha-range">固定背景透明度（壁纸常驻融合）</label>
-            <small class="kal-row-desc">设定恒定背景不透明度，固定在壁纸上常驻不动，鼠标移入移出不忽明忽暗</small>
+            <small class="kal-row-desc">设定恒定背景不透明度，松开滑杆或选择预设后立即保存；其他外观调整仍需点击保存</small>
           </div>
           <div class="kal-row-ctl kal-dock-alpha-ctl">
             <div class="kal-chips" id="kal-dock-alpha-seg" role="group" aria-label="固定背景透明度预设"></div>
@@ -478,8 +479,7 @@ export function createPanel({
     btn.addEventListener("click", async () => {
       const next = applySteadyWallAlpha(getTheme(), opt.alpha);
       if (typeof onCommitQuickAlpha === "function") {
-        await onCommitQuickAlpha(next);
-        markDirty(false);
+        if (await onCommitQuickAlpha({ kind: "alpha", value: opt.alpha }) === false) { sync(); return; }
       } else {
         previewDraftChange(next);
       }
@@ -489,20 +489,28 @@ export function createPanel({
     dockAlphaSeg?.appendChild(btn);
   }
 
+  let alphaDrag = null;
   dockAlphaRange?.addEventListener("input", () => {
+    if (!alphaDrag) alphaDrag = { wasDirty: Boolean(dirtyEl && !dirtyEl.hidden), epoch, revision: dirtyRevision };
+    else if (alphaDrag.revision !== dirtyRevision) alphaDrag.wasDirty = true;
     const alpha = Number(dockAlphaRange.value);
     if (dockAlphaVal) dockAlphaVal.textContent = `${Math.round(alpha * 100)}%`;
     const next = applySteadyWallAlpha(getTheme(), alpha);
     previewDraftChange(next);
+    alphaDrag.revision = dirtyRevision;
     syncAuxStates(next);
   });
 
   dockAlphaRange?.addEventListener("change", async () => {
     const alpha = Number(dockAlphaRange.value);
     const next = applySteadyWallAlpha(getTheme(), alpha);
+    const drag = alphaDrag;
+    alphaDrag = null;
     if (typeof onCommitQuickAlpha === "function") {
-      await onCommitQuickAlpha(next);
-      markDirty(false);
+      if (await onCommitQuickAlpha({ kind: "alpha", value: alpha }) === false) { sync(); return; }
+      if (drag && drag.epoch === epoch && drag.revision === dirtyRevision) markDirty(drag.wasDirty);
+    } else if (!drag) {
+      previewDraftChange(next);
     }
     sync();
     addLog("theme", `调节固定背景常驻不透明度为 ${Math.round(alpha * 100)}%`);
@@ -665,9 +673,10 @@ export function createPanel({
   agendaSidebarToggle?.addEventListener("change", async () => {
     const showSide = Boolean(agendaSidebarToggle.checked);
     const next = setPath(getTheme(), "layout.agenda", showSide ? "side" : "hidden");
-    onPreview(next);
     if (typeof onCommitQuickAlpha === "function") {
-      await onCommitQuickAlpha(next);
+      if (await onCommitQuickAlpha({ kind: "agenda", value: showSide ? "side" : "hidden" }) === false) { sync(); return; }
+    } else {
+      previewDraftChange(next);
     }
     try {
       await bridge?.settingsSet?.({ ui: { showAgendaSidebar: showSide, agendaDefaultMigratedV011: true } });
@@ -1206,6 +1215,28 @@ export function createPanel({
     });
   });
 
+  // 常用参数放在对应分类；完整参数仍保留在高级微调中。
+  for (const [title, cat, rows] of SECTIONS) {
+    const paths = cat === "type" ? ["type.size.day", "type.size.sub", "type.size.task", "type.size.title", "type.size.head", "type.size.agenda"]
+      : cat === "backdrop" ? rows.map(r => r.path)
+      : title === "日历功能与常用开关" ? ["layout.weekStart", "layout.showLunar", "layout.showWeekNumber", "layout.showWeekendColor"] : [];
+    if (!paths.length) continue;
+    const sec = document.createElement("div");
+    sec.className = "kal-sec";
+    sec.dataset.cat = cat;
+    const heading = document.createElement("div");
+    heading.className = "kal-sec-title";
+    heading.textContent = cat === "type" ? "日历字号" : cat === "backdrop" ? "壁纸画布参数" : "日历常用设置";
+    const hint = document.createElement("div");
+    hint.className = "kal-note";
+    hint.textContent = "调整会实时预览；保存设置后保留，关闭则放弃未保存的调整。";
+    const group = document.createElement("div");
+    group.className = "kal-card-group";
+    rows.filter(r => paths.includes(r.path)).forEach(r => group.appendChild(buildRow(r)));
+    sec.append(heading, hint, group);
+    body.appendChild(sec);
+  }
+
   // ---------------------------------------------------------- 6. 高级参数微调
 
   advancedDrawer = document.createElement("details");
@@ -1219,8 +1250,11 @@ export function createPanel({
   advancedDrawer.append(advSummary, advBody);
 
   for (const [title, , rows] of SECTIONS) {
-    const subSec = document.createElement("div");
+    const subSec = document.createElement("details");
     subSec.className = "kal-adv-group";
+    const summary = document.createElement("summary");
+    summary.textContent = title;
+    subSec.appendChild(summary);
     const headRow = document.createElement("div");
     headRow.className = "kal-sec-head-row";
     const h = document.createElement("div");
@@ -1474,15 +1508,33 @@ export function createPanel({
       const input = document.createElement("input");
       input.type = "range";
       input.min = r.min; input.max = r.max; input.step = r.step;
+      input.setAttribute("aria-label", `${r.label}滑杆`);
+      const number = document.createElement("input");
+      number.type = "number";
+      number.className = "kal-range-number";
+      number.min = r.min; number.max = r.max; number.step = r.step;
+      number.setAttribute("aria-label", `${r.label}原始数值`);
+      number.title = "输入原始数值；右侧显示换算后的效果值";
       val = document.createElement("span");
       val.className = "kal-val";
-      input.addEventListener("input", () => {
-        const v = Number(input.value);
-        val.textContent = r.fmt ? r.fmt(v) : String(v);
+      const display = v => {
+        input.value = v;
+        number.value = v;
+        val.textContent = r.fmt ? r.fmt(Number(v)) : String(v);
+        input.setAttribute("aria-valuetext", val.textContent);
+      };
+      input.addEventListener("input", () => { const v = Number(input.value); display(v); emit(r, v); });
+      number.addEventListener("change", () => {
+        if (!number.value || !number.validity.valid) {
+          display(getPath(getTheme(), r.path) ?? getPath(DEFAULT_THEME, r.path));
+          return;
+        }
+        const v = Number(number.value);
+        display(v);
         emit(r, v);
       });
-      ctl.appendChild(input); ctl.appendChild(val);
-      read = { set: t => { const v = getPath(t, r.path) ?? getPath(DEFAULT_THEME, r.path); if (v == null) return; input.value = v; val.textContent = r.fmt ? r.fmt(Number(v)) : String(v); } };
+      ctl.append(input, number, val);
+      read = { set: t => { const v = getPath(t, r.path) ?? getPath(DEFAULT_THEME, r.path); if (v != null) display(v); } };
     } else if (r.type === "color") {
       const input = document.createElement("input");
       input.type = "color";
@@ -1592,6 +1644,7 @@ export function createPanel({
       return;
     }
     previewDraftChange(next);
+    for (const c of controls) if (c.r.path === r.path) c.read.set(next);
     syncAuxStates(next);
   }
 
@@ -1710,9 +1763,18 @@ export function createPanel({
     syncDockUi();
   }
 
+  const peekButton = el.querySelector('[data-act="peek"]');
+  function setPeek(active) {
+    document.body.classList.toggle("kal-panel-peek", active);
+    peekButton.textContent = active ? "返回设置" : "查看日历";
+    peekButton.setAttribute("aria-pressed", String(active));
+  }
+  peekButton.addEventListener("click", () => setPeek(!document.body.classList.contains("kal-panel-peek")));
   function close() {
     if (busy || !isOpen()) return;
+    setPeek(false);
     epoch++; selectionRequest++; libraryRequest++;
+    alphaDrag = null;
     markDirty(false);
     onCancel?.();
     document.body.classList.remove("kal-panel-open");

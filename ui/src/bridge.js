@@ -57,6 +57,7 @@ export async function createBridge(env = {}) {
         invoke("item_delete", { id, date, expected: expected ?? null }),
       itemMove: (id, fromDate, toDate, expected = null) =>
         invoke("item_move", { id, fromDate, toDate, expected: expected ?? null }),
+      itemHistoryApply: (historyToken, direction) => invoke("item_history_apply", { historyToken, direction }),
       calendarImportItems: items => invoke("calendar_import_items", { items }),
       calendarReadTextFile: path => invoke("calendar_read_text_file", { path }),
       calendarImportDb: path => invoke("calendar_import_db", { path }),

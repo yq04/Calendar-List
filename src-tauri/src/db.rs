@@ -10,9 +10,9 @@ use crate::model::DayItem;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
-static LAST_BACKUP_EPOCH_SECS: AtomicU64 = AtomicU64::new(0);
+static LAST_BACKUPS: OnceLock<Mutex<std::collections::HashMap<PathBuf, u64>>> = OnceLock::new();
 
 fn revision(parts: &[&str]) -> String {
     let mut hash = std::collections::hash_map::DefaultHasher::new();
@@ -31,8 +31,39 @@ fn clean_legacy_tags(raw: &str) -> String {
 
 pub struct CalendarDb {
     path: PathBuf,
+    // Possession of a filename is never permission to write. Only the owned
+    // constructor used by open_default (or explicit synthetic tests) sets this.
+    owned_root: Option<PathBuf>,
+    shadow_path: Option<PathBuf>,
     #[cfg(test)]
     test_live: bool,
+}
+
+/// Copy a committed SQLite snapshot, including live WAL pages, without checkpointing
+/// or otherwise writing to the source. Publish only a verified complete temporary DB.
+pub(crate) fn snapshot_sqlite(source: &std::path::Path, destination: &std::path::Path) -> Result<(), String> {
+    crate::store::reject_link(source)?;
+    crate::store::reject_link(destination)?;
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let tmp = destination.with_extension(format!("{}.snapshot.tmp", crate::store::unique_suffix()));
+    let file = std::fs::OpenOptions::new().create_new(true).write(true).open(&tmp)
+        .map_err(|e| format!("无法创建数据库快照: {e}"))?;
+    drop(file);
+    let result = (|| {
+        let src = Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| e.to_string())?;
+        let mut dst = Connection::open(&tmp).map_err(|e| e.to_string())?;
+        rusqlite::backup::Backup::new(&src, &mut dst).map_err(|e| e.to_string())?
+            .run_to_completion(128, std::time::Duration::from_millis(10), None).map_err(|e| e.to_string())?;
+        let integrity: String = dst.query_row("PRAGMA integrity_check", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+        if integrity != "ok" { return Err(format!("数据库快照校验失败: {integrity}")); }
+        drop(dst);
+        std::fs::OpenOptions::new().write(true).open(&tmp).and_then(|f| f.sync_all()).map_err(|e| e.to_string())?;
+        std::fs::rename(&tmp, destination).map_err(|e| format!("发布数据库快照失败: {e}"))
+    })();
+    if tmp.exists() { let _ = std::fs::remove_file(&tmp); }
+    result
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -56,6 +87,33 @@ pub struct NotePage {
 pub struct NoteDocument {
     pub content: String,
     pub truncated: bool,
+}
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct ImportReport {
+    pub imported: usize,
+    pub skipped: usize,
+    pub invalid: usize,
+    pub unsupported: usize,
+    pub warnings: Vec<String>,
+}
+
+pub(crate) struct ImportRecord {
+    pub identity: String,
+    pub date: String,
+    pub time: String,
+    pub title: String,
+    pub done: bool,
+    pub note: Option<(String, Option<String>, Option<String>)>,
+    pub event: bool,
+    pub event_start: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SandboxHistoryState {
+    path: PathBuf,
+    dates: Vec<String>,
+    tables: Vec<(String, Vec<String>, Vec<Vec<rusqlite::types::Value>>)>,
 }
 
 fn extract_date(raw: &str) -> Option<String> {
@@ -168,6 +226,11 @@ fn ensure_sandbox_schema(conn: &Connection) -> Result<(), String> {
         );
         CREATE INDEX IF NOT EXISTS idx_kal_item_uid ON item_table(it_unique_id);
         CREATE INDEX IF NOT EXISTS idx_kal_event_date ON event_table(ev_date);
+        CREATE TABLE IF NOT EXISTS kal_import_identity (
+            source TEXT NOT NULL,
+            identity TEXT NOT NULL,
+            PRIMARY KEY (source, identity)
+        );
         ",
     )
     .map_err(|e| format!("初始化本地沙盒数据库表结构失败: {e}"))
@@ -175,20 +238,21 @@ fn ensure_sandbox_schema(conn: &Connection) -> Result<(), String> {
 
 pub fn ensure_sandbox_db() -> Result<PathBuf, String> {
     let sb_path = sandbox_db_path();
+    crate::store::reject_link(&sb_path)?;
     if let Some(parent) = sb_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("无法创建沙盒目录: {e}"))?;
     }
-    if !sb_path.is_file() {
+    if !sb_path.is_file() && !crate::store::is_isolated() {
         let legacy_sb = crate::store::legacy_appdata_dir()
             .join("sandbox")
             .join("kal_sandbox.db");
         if legacy_sb != sb_path && legacy_sb.is_file() {
-            let _ = std::fs::copy(&legacy_sb, &sb_path);
+            snapshot_sqlite(&legacy_sb, &sb_path)?;
         }
         if !sb_path.is_file() {
             if let Some(orig) = CalendarDb::locate_readonly_source() {
                 if orig.is_file() {
-                    let _ = std::fs::copy(&orig, &sb_path);
+                    snapshot_sqlite(&orig, &sb_path)?;
                 }
             }
         }
@@ -199,8 +263,70 @@ pub fn ensure_sandbox_db() -> Result<PathBuf, String> {
 }
 
 impl CalendarDb {
+    fn history_state_on_conn(&self, conn: &Connection, dates: &[String]) -> Result<SandboxHistoryState, String> {
+        if !self.is_sandbox() { return Err("历史仅支持自有沙盒".into()); }
+        let mut tables = Vec::new();
+        for (table, date_column) in [("item_table", "it_unique_id"), ("event_table", "ev_date")] {
+            let mut st = conn.prepare(&format!("SELECT * FROM {table} ORDER BY 1")).map_err(|e| e.to_string())?;
+            let columns: Vec<String> = st.column_names().iter().map(|s| s.to_string()).collect();
+            let date_index = columns.iter().position(|s| s == date_column).ok_or("历史表结构无效")?;
+            let start_index = if table == "event_table" {
+                Some(columns.iter().position(|s| s == "ev_start_date").ok_or("历史事件缺少起始时间列")?)
+            } else { None };
+            let count = columns.len();
+            let rows = st.query_map([], |r| (0..count).map(|i| r.get::<_, rusqlite::types::Value>(i)).collect::<rusqlite::Result<Vec<_>>>()).map_err(|e| e.to_string())?;
+            let mut selected = Vec::new();
+            for row in rows {
+                let row = row.map_err(|e| e.to_string())?;
+                // Match the display/query rule exactly: a nonempty event start
+                // owns the visible date, including when ev_date is NULL or stale.
+                let date_value = start_index.and_then(|index| match &row[index] {
+                    rusqlite::types::Value::Text(start) if !start.is_empty() => Some(&row[index]),
+                    _ => None,
+                }).unwrap_or(&row[date_index]);
+                if let rusqlite::types::Value::Text(value) = date_value {
+                    if extract_date(value).is_some_and(|d| dates.contains(&d)) { selected.push(row); }
+                }
+            }
+            tables.push((table.to_string(), columns, selected));
+        }
+        Ok(SandboxHistoryState { path: self.path.clone(), dates: dates.to_vec(), tables })
+    }
+
+    pub(crate) fn history_state(&self, dates: &[String]) -> Result<SandboxHistoryState, String> {
+        self.history_state_on_conn(&self.conn()?, dates)
+    }
+
+    pub(crate) fn apply_history_state(&self, expected: &SandboxHistoryState, desired: &SandboxHistoryState) -> Result<(), String> {
+        if expected.path != self.path || desired.path != self.path || expected.dates != desired.dates {
+            return Err("历史记录不属于当前沙盒".into());
+        }
+        let mut conn = self.conn_rw()?;
+        self.backup_sandbox_if_needed()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+        if self.history_state_on_conn(&tx, &expected.dates)? != *expected {
+            return Err("日期内容已变化，无法安全撤销；请刷新核对".into());
+        }
+        for ((table, columns, current), (_, desired_columns, replacement)) in expected.tables.iter().zip(&desired.tables) {
+            if columns != desired_columns { return Err("历史表结构已变化".into()); }
+            let id_column = columns.first().ok_or("历史表缺少主键")?;
+            for row in current {
+                tx.execute(&format!("DELETE FROM {table} WHERE \"{id_column}\"=?1"), rusqlite::params_from_iter(row.iter().take(1))).map_err(|e| e.to_string())?;
+            }
+            let column_sql = columns.iter().map(|s| format!("\"{}\"", s.replace('"', "\"\""))).collect::<Vec<_>>().join(",");
+            let args = (0..columns.len()).map(|_| "?").collect::<Vec<_>>().join(",");
+            for row in replacement {
+                tx.execute(&format!("INSERT INTO {table} ({column_sql}) VALUES ({args})"), rusqlite::params_from_iter(row.iter())).map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        drop(conn);
+        self.sync_portable_shadow();
+        Ok(())
+    }
     /// 仅定位原版只读数据库（不看环境变量）
     pub fn locate_readonly_source() -> Option<PathBuf> {
+        if crate::store::is_isolated() { return None; }
         let candidates = [
             r"D:\1_app\CalendarTask\Db\calendar.db",
             r"C:\Program Files\CalendarTask\Db\calendar.db",
@@ -246,6 +372,8 @@ impl CalendarDb {
         }
         Ok(Self {
             path,
+            owned_root: None,
+            shadow_path: None,
             #[cfg(test)]
             test_live: false,
         })
@@ -259,10 +387,23 @@ impl CalendarDb {
     }
 
     pub fn is_sandbox(&self) -> bool {
-        self.path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|name| name == "kal_sandbox.db" || name.starts_with("kal-sandbox-"))
+        self.owned_root.is_some()
+    }
+
+    fn open_owned(path: PathBuf, root: PathBuf) -> Result<Self, String> {
+        crate::store::reject_link(&path)?;
+        let actual = path.canonicalize().map_err(|e| e.to_string())?;
+        let root = root.canonicalize().map_err(|e| e.to_string())?;
+        if !actual.starts_with(&root) { return Err("沙盒路径不属于当前数据根".into()); }
+        let mut db = Self::open(actual)?;
+        db.owned_root = Some(root);
+        Ok(db)
+    }
+
+    #[cfg(test)]
+    pub fn synthetic_owned(path: PathBuf) -> Result<Self, String> {
+        let root = path.parent().ok_or("missing synthetic root")?.to_path_buf();
+        Self::open_owned(path, root)
     }
 
     fn conn(&self) -> Result<Connection, String> {
@@ -274,31 +415,35 @@ impl CalendarDb {
         if !self.is_sandbox() {
             return Err("安全红线拦截：严禁直接写入非沙盒数据库".into());
         }
+        crate::store::reject_link(&self.path)?;
+        let actual = self.path.canonicalize().map_err(|e| e.to_string())?;
+        if !actual.starts_with(self.owned_root.as_ref().ok_or("未授权的沙盒")?) {
+            return Err("沙盒已离开受控数据根，拒绝写入".into());
+        }
         let conn = Connection::open(&self.path).map_err(|e| format!("打开沙盒数据库失败: {e}"))?;
         ensure_sandbox_schema(&conn)?;
         Ok(conn)
     }
 
-    fn backup_sandbox_if_needed(&self) {
+    fn backup_sandbox_if_needed(&self) -> Result<(), String> {
         if !self.is_sandbox() || !self.path.is_file() {
-            return;
+            return Ok(());
         }
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let prev = LAST_BACKUP_EPOCH_SECS.load(Ordering::Relaxed);
+        let mut backups = LAST_BACKUPS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+            .lock().map_err(|_| "备份状态不可用")?;
+        let prev = backups.get(&self.path).copied().unwrap_or(0);
         if prev != 0 && now_secs.saturating_sub(prev) < 600 {
-            return;
+            return Ok(());
         }
-        LAST_BACKUP_EPOCH_SECS.store(now_secs, Ordering::Relaxed);
-        let bdir = backups_dir();
-        if std::fs::create_dir_all(&bdir).is_err() {
-            return;
-        }
-        let dest = bdir.join(format!("kal_sandbox_{now_secs}.db"));
-        let _ = std::fs::copy(&self.path, &dest);
-        self.sync_portable_shadow();
+        let bdir = self.owned_root.as_ref().ok_or("未授权的沙盒")?.join("backups");
+        std::fs::create_dir_all(&bdir).map_err(|e| format!("无法创建备份目录: {e}"))?;
+        let dest = bdir.join(format!("kal_sandbox_{now_secs}_{}.db", crate::store::unique_suffix()));
+        snapshot_sqlite(&self.path, &dest).map_err(|e| format!("写入前备份失败，未修改数据: {e}"))?;
+        backups.insert(self.path.clone(), now_secs);
 
         // 保留最近 20 份备份
         if let Ok(entries) = std::fs::read_dir(&bdir) {
@@ -320,20 +465,18 @@ impl CalendarDb {
                 }
             }
         }
+        Ok(())
     }
 
     pub fn sync_portable_shadow(&self) {
-        if !self.is_sandbox() || !crate::store::is_portable_install_dir() || !self.path.is_file() {
-            return;
-        }
-        let legacy_sb = crate::store::legacy_appdata_dir()
-            .join("sandbox")
-            .join("kal_sandbox.db");
-        if legacy_sb != self.path {
+        let Some(legacy_sb) = &self.shadow_path else { return; };
+        if legacy_sb != &self.path {
             if let Some(p) = legacy_sb.parent() {
                 let _ = std::fs::create_dir_all(p);
             }
-            let _ = std::fs::copy(&self.path, &legacy_sb);
+            if let Err(error) = snapshot_sqlite(&self.path, legacy_sb) {
+                let _ = crate::store::append_log_line(&format!("[shadow] 主库已保存，副本刷新失败: {error}"));
+            }
         }
     }
 
@@ -345,6 +488,7 @@ impl CalendarDb {
         if self.is_sandbox() {
             return true;
         }
+        if crate::store::is_isolated() { return false; }
         // 测试库和任意外部副本永远不能把编辑转发到真实宿主。
         let Some(path) = self.path.canonicalize().ok() else {
             return false;
@@ -797,25 +941,33 @@ impl CalendarDb {
 
     // ---------------------------------------------------------------- 本地沙盒直写引擎
 
-    pub fn sandbox_create(&self, date: &str, value: &str, time: &str) -> Result<(), String> {
-        let conn = self.conn_rw()?;
-        self.backup_sandbox_if_needed();
+    pub fn sandbox_create(&self, date: &str, value: &str, time: &str) -> Result<String, String> {
+        let mut conn = self.conn_rw()?;
+        self.backup_sandbox_if_needed()?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        let id = Self::create_on_conn(&tx, date, value, time, false)?;
+        tx.commit().map_err(|e| e.to_string())?;
+        drop(conn);
+        self.sync_portable_shadow();
+        Ok(id)
+    }
+
+    fn create_on_conn(conn: &Connection, date: &str, value: &str, time: &str, done: bool) -> Result<String, String> {
         let clean_title = value.trim();
         let clean_time = time.trim();
 
         if !clean_time.is_empty() {
-            let start_dt = format!("{date}T{clean_time}:00+08:00");
+            let start_dt = format!("{date}T{clean_time}:00");
             let uid = format!("kal-ev-{}", crate::store::unique_suffix());
             conn.execute(
                 "INSERT INTO event_table (ev_content, ev_date, ev_start_date, ev_status, u_id, ev_unique_id, group_id) \
-                 VALUES (?1, ?2, ?3, 0, 0, ?4, '')",
-                rusqlite::params![clean_title, date, start_dt, uid],
+                 VALUES (?1, ?2, ?3, ?5, 0, ?4, '')",
+                rusqlite::params![clean_title, date, start_dt, uid, i64::from(done)],
             )
             .map_err(|e| format!("保存日程事件失败: {e}"))?;
-            drop(conn);
-            self.sync_portable_shadow();
-            return Ok(());
+            return Ok(format!("ev-{}", conn.last_insert_rowid()));
         }
+        let payload = if done { format!("~~{clean_title}~~") } else { clean_title.to_string() };
 
         // 查找当天是否已有默认分组行
         let mut st = conn
@@ -832,7 +984,8 @@ impl CalendarDb {
             .map_err(|e| e.to_string())?;
 
         let mut target_row: Option<(i64, String)> = None;
-        for r in rows.flatten() {
+        for r in rows {
+            let r = r.map_err(|e| e.to_string())?;
             if extract_date(&r.1).as_deref() == Some(date) {
                 target_row = Some((r.0, r.2));
                 break;
@@ -840,34 +993,35 @@ impl CalendarDb {
         }
         drop(st);
 
-        if let Some((row_id, existing)) = target_row {
+        let id = if let Some((row_id, existing)) = target_row {
             let trimmed = existing.trim_end_matches(['\r', '\n']);
             let next_content = if trimmed.is_empty() {
-                clean_title.to_string()
+                payload.clone()
             } else {
-                format!("{trimmed}\r\n{clean_title}")
+                format!("{trimmed}\r\n{payload}")
             };
             conn.execute(
                 "UPDATE item_table SET it_content = ?1 WHERE it_id = ?2",
                 rusqlite::params![next_content, row_id],
             )
             .map_err(|e| format!("追加任务失败: {e}"))?;
+            let index = if trimmed.is_empty() { 0 } else { trimmed.split('\n').count() };
+            format!("it-{row_id}:{index}")
         } else {
             let uid = key(date);
             conn.execute(
                 "INSERT INTO item_table (it_unique_id, it_content, it_appinfo, u_id, group_id) VALUES (?1, ?2, '{}', 0, '')",
-                rusqlite::params![uid, clean_title],
+                rusqlite::params![uid, payload],
             )
             .map_err(|e| format!("新建任务失败: {e}"))?;
-        }
-        drop(conn);
-        self.sync_portable_shadow();
-        Ok(())
+            format!("it-{}:0", conn.last_insert_rowid())
+        };
+        Ok(id)
     }
 
     pub fn sandbox_update(&self, id: &str, _date: &str, new_title: &str) -> Result<(), String> {
         let conn = self.conn_rw()?;
-        self.backup_sandbox_if_needed();
+        self.backup_sandbox_if_needed()?;
         let clean_title = new_title.trim();
 
         if let Some(ev_id_str) = id.strip_prefix("ev-") {
@@ -881,6 +1035,8 @@ impl CalendarDb {
             if changed == 0 {
                 return Err("日程不存在，请刷新后重试".into());
             }
+            drop(conn);
+            self.sync_portable_shadow();
             return Ok(());
         }
 
@@ -925,7 +1081,7 @@ impl CalendarDb {
 
     pub fn sandbox_toggle(&self, id: &str, _date: &str, done: bool) -> Result<(), String> {
         let conn = self.conn_rw()?;
-        self.backup_sandbox_if_needed();
+        self.backup_sandbox_if_needed()?;
 
         if let Some(ev_id_str) = id.strip_prefix("ev-") {
             let ev_id: i64 = ev_id_str.parse().map_err(|_| "事件 ID 无效")?;
@@ -935,6 +1091,8 @@ impl CalendarDb {
                 rusqlite::params![status_val, ev_id],
             )
             .map_err(|e| format!("更新事件完成状态失败: {e}"))?;
+            drop(conn);
+            self.sync_portable_shadow();
             return Ok(());
         }
 
@@ -984,12 +1142,14 @@ impl CalendarDb {
 
     pub fn sandbox_delete(&self, id: &str, _date: &str) -> Result<(), String> {
         let conn = self.conn_rw()?;
-        self.backup_sandbox_if_needed();
+        self.backup_sandbox_if_needed()?;
 
         if let Some(ev_id_str) = id.strip_prefix("ev-") {
             let ev_id: i64 = ev_id_str.parse().map_err(|_| "事件 ID 无效")?;
             conn.execute("DELETE FROM event_table WHERE ev_id = ?1", [ev_id])
                 .map_err(|e| format!("删除事件失败: {e}"))?;
+            drop(conn);
+            self.sync_portable_shadow();
             return Ok(());
         }
 
@@ -1026,9 +1186,9 @@ impl CalendarDb {
         Ok(())
     }
 
-    pub fn sandbox_move_item(&self, id: &str, from_date: &str, to_date: &str) -> Result<(), String> {
+    pub fn sandbox_move_item(&self, id: &str, from_date: &str, to_date: &str) -> Result<String, String> {
         if from_date == to_date {
-            return Ok(());
+            return Ok(id.to_string());
         }
         let item = self
             .day_items(from_date)?
@@ -1036,32 +1196,43 @@ impl CalendarDb {
             .find(|i| i.id == id)
             .ok_or_else(|| "要移动的日程已不存在，请刷新后重试".to_string())?;
 
-        let conn = self.conn_rw()?;
-        self.backup_sandbox_if_needed();
+        let mut conn = self.conn_rw()?;
+        self.backup_sandbox_if_needed()?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
 
         if let Some(ev_id_str) = id.strip_prefix("ev-") {
             let ev_id: i64 = ev_id_str.parse().map_err(|_| "事件 ID 无效")?;
-            let new_start = if item.time.is_empty() {
-                to_date.to_string()
-            } else {
-                format!("{to_date}T{}:00+08:00", item.time)
+            let original: Option<String> = tx.query_row("SELECT ev_start_date FROM event_table WHERE ev_id=?1", [ev_id], |r| r.get(0)).map_err(|e| e.to_string())?;
+            let new_start = match original.as_deref() {
+                Some(value) if value.is_ascii() && value.len() >= 10 && value.as_bytes()[4] == b'-' && value.as_bytes()[7] == b'-' => format!("{to_date}{}", &value[10..]),
+                Some(value) if value.is_ascii() && value.len() >= 8 && value.as_bytes()[..8].iter().all(u8::is_ascii_digit) => format!("{}{}", key(to_date), &value[8..]),
+                _ if item.time.is_empty() => to_date.to_string(),
+                _ => format!("{to_date}T{}:00", item.time),
             };
-            conn.execute(
+            tx.execute(
                 "UPDATE event_table SET ev_date = ?1, ev_start_date = ?2 WHERE ev_id = ?3",
                 rusqlite::params![to_date, new_start, ev_id],
             )
             .map_err(|e| format!("移动事件日期失败: {e}"))?;
-            return Ok(());
+            tx.commit().map_err(|e| e.to_string())?;
+            drop(conn);
+            self.sync_portable_shadow();
+            return Ok(id.to_string());
         }
 
         // 普通任务行：先从原日期移除，再追加到目标日期（保留完成态删除线）
-        self.sandbox_delete(id, from_date)?;
-        let line_text = if item.done {
-            format!("~~{}~~", item.title)
-        } else {
-            item.title
-        };
-        self.sandbox_create(to_date, &line_text, "")
+        let (row_id, line_idx) = id.strip_prefix("it-").and_then(|s| s.split_once(':'))
+            .and_then(|(r,l)| Some((r.parse::<i64>().ok()?, l.parse::<usize>().ok()?))).ok_or("任务行标识无效")?;
+        let raw: String = tx.query_row("SELECT coalesce(it_content,'') FROM item_table WHERE it_id=?1", [row_id], |r| r.get(0)).map_err(|e| e.to_string())?;
+        let mut lines: Vec<&str> = raw.split('\n').map(|s| s.trim_end_matches('\r')).collect();
+        if line_idx >= lines.len() { return Err("任务行号已变化".into()); }
+        lines.remove(line_idx);
+        tx.execute("UPDATE item_table SET it_content=?1 WHERE it_id=?2", rusqlite::params![lines.join("\r\n"), row_id]).map_err(|e| e.to_string())?;
+        let target = Self::create_on_conn(&tx, to_date, &item.title, "", item.done)?;
+        tx.commit().map_err(|e| e.to_string())?;
+        drop(conn);
+        self.sync_portable_shadow();
+        Ok(target)
     }
 
     pub fn sandbox_note_save(
@@ -1071,7 +1242,7 @@ impl CalendarDb {
         content: &str,
     ) -> Result<NoteSummary, String> {
         let conn = self.conn_rw()?;
-        self.backup_sandbox_if_needed();
+        self.backup_sandbox_if_needed()?;
         let clean_title = title.trim();
         if clean_title.is_empty() {
             return Err("便签标题不能为空".into());
@@ -1093,6 +1264,8 @@ impl CalendarDb {
                 rusqlite::params![clean_title, content, now_str, row_id],
             )
             .map_err(|e| format!("更新便签失败: {e}"))?;
+            drop(conn);
+            self.sync_portable_shadow();
             return Ok(NoteSummary {
                 id: format!("nt-{row_id}"),
                 title: clean_title.to_string(),
@@ -1108,6 +1281,8 @@ impl CalendarDb {
         )
         .map_err(|e| format!("创建便签失败: {e}"))?;
         let row_id = conn.last_insert_rowid();
+        drop(conn);
+        self.sync_portable_shadow();
         Ok(NoteSummary {
             id: format!("nt-{row_id}"),
             title: clean_title.to_string(),
@@ -1119,7 +1294,7 @@ impl CalendarDb {
 
     pub fn sandbox_note_delete(&self, id: &str) -> Result<(), String> {
         let conn = self.conn_rw()?;
-        self.backup_sandbox_if_needed();
+        self.backup_sandbox_if_needed()?;
         let row_id = id
             .strip_prefix("nt-")
             .unwrap_or(id)
@@ -1133,46 +1308,126 @@ impl CalendarDb {
     }
 
     /// 从任意外部 SQLite 数据库（如原版 calendar.db / dcal.db）只读导入日程与任务到当前沙盒库
-    pub fn sandbox_import_external_db(&self, external_path: &std::path::Path) -> Result<(usize, usize), String> {
+    pub fn sandbox_import_external_db(&self, external_path: &std::path::Path) -> Result<ImportReport, String> {
         if !self.is_sandbox() {
             return Err("安全红线拦截：仅允许向本地沙盒库导入数据".into());
         }
         if !external_path.is_file() {
             return Err(format!("所选数据库文件不存在: {}", external_path.display()));
         }
-        let src_db = CalendarDb::open(external_path.to_path_buf())?;
-        let src_items = src_db.all_items()?;
-        let existing = self.all_items().unwrap_or_default();
-        let mut seen: std::collections::HashSet<(String, String, String)> = existing
-            .into_iter()
-            .map(|it| (it.date, it.time, it.title.trim().to_string()))
-            .collect();
-
-        let mut imported = 0usize;
-        let mut skipped = 0usize;
-        for item in src_items {
-            if item.kind == "note" {
-                continue;
+        crate::store::reject_link(external_path)?;
+        let canonical_source = external_path.canonicalize().map_err(|e| e.to_string())?;
+        if canonical_source == self.path { return Err("不能将当前沙盒导入自身".into()); }
+        // Read one stable source snapshot, even when its owner is actively writing WAL.
+        let temp = self.owned_root.as_ref().ok_or("未授权的沙盒")?
+            .join(format!("import-{}.db", crate::store::unique_suffix()));
+        struct Temp(std::path::PathBuf);
+        impl Drop for Temp { fn drop(&mut self) { let _ = std::fs::remove_file(&self.0); } }
+        let _cleanup = Temp(temp.clone());
+        snapshot_sqlite(&canonical_source, &temp)?;
+        let src_db = CalendarDb::open(temp)?;
+        let src = src_db.conn()?;
+        let known = ["item_table", "event_table", "note_table"].iter().any(|t| !col(&src, t).is_empty());
+        if !known { return Err("来源不含支持的任务、事件或便签表".into()); }
+        let mut records = Vec::new();
+        let mut event_starts = std::collections::HashMap::new();
+        let mut unsupported_events = std::collections::HashSet::new();
+        let event_columns = col(&src, "event_table");
+        for column in ["ev_end_date", "ev_end_time", "ev_rrule", "rrule", "recurrence_id", "ev_repeat"] {
+            if !event_columns.iter().any(|c| c == column) { continue; }
+            let mut st = src.prepare(&format!("SELECT ev_id,\"{column}\" FROM event_table")).map_err(|e| e.to_string())?;
+            let rows = st.query_map([], |r| Ok((r.get::<_,i64>(0)?, r.get::<_,rusqlite::types::Value>(1)?))).map_err(|e| e.to_string())?;
+            for row in rows {
+                let (id,value) = row.map_err(|e| e.to_string())?;
+                let active = match value {
+                    rusqlite::types::Value::Null | rusqlite::types::Value::Integer(0) => false,
+                    rusqlite::types::Value::Real(number) => number != 0.0,
+                    rusqlite::types::Value::Text(text) => !matches!(text.trim(), "" | "0" | "[]" | "{}"),
+                    _ => true,
+                };
+                if active { unsupported_events.insert(format!("ev-{id}")); }
             }
-            let clean_title = item.title.trim().to_string();
-            if clean_title.is_empty() {
-                continue;
-            }
-            let key_tuple = (item.date.clone(), item.time.clone(), clean_title.clone());
-            if !seen.insert(key_tuple) {
-                skipped += 1;
-                continue;
-            }
-            let payload = if item.done && item.time.is_empty() {
-                format!("~~{clean_title}~~")
-            } else {
-                clean_title
-            };
-            self.sandbox_create(&item.date, &payload, &item.time)?;
-            imported += 1;
         }
+        if !col(&src, "event_table").is_empty() {
+            let mut st = src.prepare("SELECT ev_id,ev_start_date,ev_status FROM event_table").map_err(|e| e.to_string())?;
+            let rows = st.query_map([], |r| {
+                let _status = r.get::<_,Option<i64>>(2)?;
+                Ok((r.get::<_,i64>(0)?, r.get::<_,Option<String>>(1)?))
+            }).map_err(|e| e.to_string())?;
+            for row in rows {
+                let (id,start) = row.map_err(|e| e.to_string())?;
+                event_starts.insert(format!("ev-{id}"), start);
+            }
+        }
+        if !col(&src, "item_table").is_empty() {
+            let mut st = src.prepare("SELECT it_unique_id,it_content,it_appinfo FROM item_table").map_err(|e| e.to_string())?;
+            let rows = st.query_map([], |r| Ok((r.get::<_,Option<String>>(0)?,r.get::<_,Option<String>>(1)?,r.get::<_,Option<String>>(2)?))).map_err(|e| e.to_string())?;
+            for row in rows {
+                let (uid,content,appinfo) = row.map_err(|e| e.to_string())?;
+                if content.as_deref().unwrap_or("").trim().is_empty() { continue; }
+                let date = uid.as_deref().and_then(extract_date).ok_or("来源有无法解析日期的任务，整批未写入")?;
+                crate::editing::validate_date(&date)?;
+                if let Some(info) = appinfo.filter(|s| !s.trim().is_empty()) {
+                    let value: serde_json::Value = serde_json::from_str(&info).map_err(|_| "来源任务状态不是合法 JSON，整批未写入")?;
+                    if value.get("done").is_some_and(|done| !done.is_boolean()) { return Err("来源任务完成态无效，整批未写入".into()); }
+                }
+            }
+        }
+        for item in src_db.all_items()?.into_iter().filter(|i| i.kind != "note") {
+            if unsupported_events.contains(&item.id) { event_starts.remove(&item.id); continue; }
+            crate::editing::validate_date(&item.date)?;
+            crate::editing::validate_import_text(&item.title, &item.time)?;
+            let event_start = event_starts.remove(&item.id).flatten();
+            records.push(ImportRecord { identity: item.id, date: item.date, time: item.time,
+                title: item.title, done: item.done, note: None, event: item.kind == "event", event_start });
+        }
+        event_starts.retain(|id,_| !unsupported_events.contains(id));
+        if !event_starts.is_empty() { return Err("来源包含无法解析的事件日期，整批未写入".into()); }
+        // notes_page/note_document intentionally truncate for display; import reads full raw bodies.
+        if !col(&src, "note_table").is_empty() {
+            let mut st = src.prepare("SELECT nt_id,coalesce(nt_title,''),coalesce(nt_content,''),nt_cdate,nt_mdate FROM note_table").map_err(|e| e.to_string())?;
+            let rows = st.query_map([], |r| Ok((r.get::<_,i64>(0)?, r.get::<_,String>(1)?, r.get::<_,String>(2)?, r.get::<_,Option<String>>(3)?, r.get::<_,Option<String>>(4)?))).map_err(|e| e.to_string())?;
+            for row in rows {
+                let (id,title,content,created,modified) = row.map_err(|e| e.to_string())?;
+                records.push(ImportRecord { identity: format!("nt-{id}"), date: String::new(), time: String::new(),
+                    title, done: false, note: Some((content,created,modified)), event: false, event_start: None });
+            }
+        }
+        let source = format!("database:{}", canonical_source.to_string_lossy());
+        let mut report = self.import_records(&source, records)?;
+        report.unsupported = unsupported_events.len();
+        if report.unsupported > 0 { report.warnings.push(format!("{} 条外部事件包含尚不支持的结束时间或重复信息，已整项跳过。", report.unsupported)); }
+        report.warnings.push("数据库身份按来源路径和原始行标识保留；更换路径视为新的来源，既有身份重导入跳过且不覆盖本地修改。".into());
+        report.warnings.push("只导入任务文本与完成态、事件日期时间与完成态、便签正文与日期；不导入来源账号、分组、提醒或同步配置。外部事件原始起始时间串予以保留，不进行时区转换。".into());
+        Ok(report)
+    }
+
+    pub(crate) fn import_records(&self, source: &str, records: Vec<ImportRecord>) -> Result<ImportReport, String> {
+        let mut conn = self.conn_rw()?;
+        self.backup_sandbox_if_needed()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+        let mut report = ImportReport::default();
+        for record in records {
+            let seen: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM kal_import_identity WHERE source=?1 AND identity=?2)",
+                [source, record.identity.as_str()], |r| r.get(0)).map_err(|e| e.to_string())?;
+            if seen { report.skipped += 1; continue; }
+            if let Some((content,created,modified)) = record.note {
+                tx.execute("INSERT INTO note_table (nt_title,nt_content,nt_cdate,nt_mdate) VALUES (?1,?2,?3,?4)",
+                    rusqlite::params![record.title,content,created,modified]).map_err(|e| format!("导入便签失败: {e}"))?;
+            } else if record.event {
+                let start = record.event_start.unwrap_or_else(|| if record.time.is_empty() { record.date.clone() } else { format!("{}T{}:00",record.date,record.time) });
+                tx.execute("INSERT INTO event_table (ev_content,ev_date,ev_start_date,ev_status,ev_unique_id) VALUES (?1,?2,?3,?4,?5)",
+                    rusqlite::params![record.title,record.date,start,i64::from(record.done),format!("kal-ev-{}",crate::store::unique_suffix())]).map_err(|e| e.to_string())?;
+            } else {
+                Self::create_on_conn(&tx, &record.date, &record.title, &record.time, record.done)?;
+            }
+            tx.execute("INSERT INTO kal_import_identity (source,identity) VALUES (?1,?2)", [source, record.identity.as_str()]).map_err(|e| e.to_string())?;
+            report.imported += 1;
+        }
+        tx.commit().map_err(|e| format!("导入提交失败，已回滚: {e}"))?;
+        drop(conn);
         self.sync_portable_shadow();
-        Ok((imported, skipped))
+        Ok(report)
     }
 
     /// 诊断报告：用于校准字段语义
@@ -1255,7 +1510,11 @@ pub fn open_default() -> Result<CalendarDb, String> {
     }
     // 默认使用本地独立可写沙盒库（首次自动从原版库只读克隆初始快照）
     let sb = ensure_sandbox_db()?;
-    CalendarDb::open(sb)
+    let mut db = CalendarDb::open_owned(sb, crate::store::app_dir())?;
+    if !crate::store::is_isolated() && crate::store::is_portable_install_dir() {
+        db.shadow_path = Some(crate::store::legacy_appdata_dir().join("sandbox").join("kal_sandbox.db"));
+    }
+    Ok(db)
 }
 
 #[cfg(test)]
@@ -1265,3 +1524,7 @@ mod notes_tests;
 #[cfg(test)]
 #[path = "db_range_tests.rs"]
 mod range_tests;
+
+#[cfg(test)]
+#[path = "storage_integrity_tests.rs"]
+mod storage_integrity_tests;

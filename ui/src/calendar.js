@@ -185,12 +185,7 @@ export function buildIcsCalendar(events = [], calName = "Kal Desktop Calendar") 
     lines.push(`UID:${uid}`);
     lines.push(`DTSTAMP:${stamp}`);
     if (tm) {
-      const hh = Number(tm[1]);
-      const mm = Number(tm[2]);
-      const endH = hh < 23 ? pad(hh + 1) : "23";
-      const endM = hh < 23 ? pad(mm) : "59";
       lines.push(`DTSTART:${ymd}T${tm[1]}${tm[2]}00`);
-      lines.push(`DTEND:${ymd}T${endH}${endM}00`);
     } else {
       const dt = fromKey(ev.date);
       const nextDt = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + 1);

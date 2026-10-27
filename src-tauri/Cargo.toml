@@ -1,6 +1,6 @@
 [package]
 name = "kal-shell"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Kal 桌历 —— 嵌入式桌面日历清单"
 authors = ["YG"]
@@ -22,7 +22,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 winreg = "0.56"
 # 仅需解码壁纸位图，关掉默认特性可省掉一大票无关编解码器
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "bmp"] }

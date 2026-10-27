@@ -1990,8 +1990,8 @@ async function run() {
         p5Res.bgToken === "251 246 236" &&
         p5Res.isLightMode === true &&
         p5Res.defaultWrap === "pre-wrap" &&
-        p5Res.hasClamp2Class === true &&
-        p5Res.hasNowrapClass === true &&
+        p5Res.hasClamp2Class === false &&
+        p5Res.hasNowrapClass === false &&
         p5Res.restoredAutoWrap === true &&
         p5Res.popOpen === true &&
         p5Res.activeOrient === "landscape" &&
@@ -2174,14 +2174,14 @@ async function run() {
     }
 
     // =========================================================================
-    // P8：左侧日历双击直接内联编辑 + 右侧列表直编 + v0.1.0 版本号与检查更新
+    // P8：左侧日历双击直接内联编辑 + 右侧列表直编 + v0.1.2 版本号与检查更新
     // =========================================================================
     try {
       const p8Res = await cdp.evaluate(`(async () => {
         window.__KAL_TEST__.setRequireConfirm(false);
         window.__KAL_TEST__.clearCalls();
 
-        // 1. Verify v0.1.0 version badge in header and settings
+        // 1. Verify v0.1.2 version badge in header and settings
         const headerVer = document.getElementById("kal-app-version")?.textContent?.trim() || "";
         const panelVer = document.getElementById("kal-panel-version")?.textContent?.trim() || "";
 
@@ -2211,7 +2211,7 @@ async function run() {
         const leftSaved = createCalls.some(c => c.args?.date === "2026-10-15" && c.args?.title === "左格双击直接添加事项" && c.args?.time === "");
         const rightSaved = createCalls.some(c => c.args?.date === "2026-10-15" && c.args?.title === "右侧列表直接添加事项" && c.args?.time === "");
 
-        // 4. Open Settings & test Check for Updates (v0.1.0)
+        // 4. Open Settings & test Check for Updates (v0.1.2)
         document.getElementById("kal-settings")?.click();
         const checkBtn = document.getElementById("kal-check-update-btn");
         const changelogBtn = document.getElementById("kal-changelog-btn");
@@ -2232,21 +2232,21 @@ async function run() {
           leftSaved,
           rightSaved,
           changelogOpened,
-          updateUpToDate: Boolean(lastCheck?.upToDate && updateStatus.includes("v0.1.1")),
+          updateUpToDate: Boolean(lastCheck?.upToDate && updateStatus.includes("v0.1.2")),
         };
       })()`);
       const ok =
-        p8Res.headerVer === "v0.1.1" &&
-        p8Res.panelVer === "v0.1.1" &&
+        p8Res.headerVer === "v0.1.2" &&
+        p8Res.panelVer === "v0.1.2" &&
         p8Res.cellEditorOpened === true &&
         p8Res.rightEditorOpened === true &&
         p8Res.leftSaved === true &&
         p8Res.rightSaved === true &&
         p8Res.changelogOpened === true &&
         p8Res.updateUpToDate === true;
-      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.1版本标识与检查更新", ok, JSON.stringify(p8Res));
+      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.2版本标识与检查更新", ok, JSON.stringify(p8Res));
     } catch (err) {
-      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.1版本标识与检查更新", false, err.message);
+      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.2版本标识与检查更新", false, err.message);
     }
 
     // =========================================================================
@@ -2669,6 +2669,9 @@ async function run() {
         await window.__KAL_TEST__.seedDirectItem("2026-10-22", "国家奖学金公示复核与材料归档提交", "");
         await window.__KAL_TEST__.seedDirectItem("2026-10-22", "提交自强之星材料给辅导员审核", "");
         await window.__KAL_TEST__.seedDirectItem("2026-10-22", "新生完成实验室安全准入考试与培训", "");
+        await window.__KAL_TEST__.seedDirectItem("2026-10-22", "第四项长内容需要自动换行并完整显示", "");
+        await window.__KAL_TEST__.seedDirectItem("2026-10-22", "第五项长内容需要自动换行并完整显示", "");
+        await window.__KAL_TEST__.seedDirectItem("2026-10-22", "第六项长内容需要自动换行并完整显示", "");
         document.getElementById("kal-refresh")?.click();
         await new Promise(r => setTimeout(r, 120));
         document.querySelector('.kal-cell[data-key="2026-10-22"]')?.click();
@@ -2677,9 +2680,21 @@ async function run() {
         // Check Issue 2: 2nd and 3rd tasks inside .kal-cell.is-multi-tasks.is-crowded allow full multi-line wrapping with NO 2-line limit and NO ellipsis
         const cell22 = document.querySelector('.kal-cell[data-key="2026-10-22"]');
         const cellTasks = Array.from(cell22?.querySelectorAll(".kal-task") || []);
-        const allTasksWrap = cellTasks.length >= 3 && cellTasks.every(t => {
+        const allTasksWrap = cellTasks.length >= 6 && cellTasks.every(t => {
           const cs = getComputedStyle(t);
           return cs.whiteSpace === "pre-wrap" && cs.webkitLineClamp === "none" && cs.overflow === "visible";
+        });
+        const tasksBox = cell22?.querySelector(".kal-tasks");
+        const canScrollTasks = !!tasksBox && tasksBox.scrollHeight > tasksBox.clientHeight && (() => {
+          tasksBox.scrollTop = tasksBox.scrollHeight;
+          return tasksBox.scrollTop > 0;
+        })();
+        const legacyModesWrap = ["kal-task-clamp2", "kal-task-nowrap"].every(cls => {
+          document.body.classList.add(cls);
+          const cs = getComputedStyle(cellTasks[0]);
+          const ok = cs.whiteSpace === "pre-wrap" && cs.webkitLineClamp === "none" && cs.textOverflow !== "ellipsis";
+          document.body.classList.remove(cls);
+          return ok;
         });
         const octCellCount = document.querySelectorAll("#kal-grid .kal-cell").length;
         const octIsFiveRows = octCellCount === 35;
@@ -2736,6 +2751,8 @@ async function run() {
           sidebarVisibleWhenChecked,
           sidebarHiddenWhenUnchecked,
           allTasksWrap,
+          canScrollTasks,
+          legacyModesWrap,
           circleAligned,
           dotCenterDiff: Math.abs(dotCenterY - txtFirstLineCenterY),
           headRightHidden,
@@ -2753,6 +2770,8 @@ async function run() {
         p13Res.sidebarVisibleWhenChecked === true &&
         p13Res.sidebarHiddenWhenUnchecked === true &&
         p13Res.allTasksWrap === true &&
+        p13Res.canScrollTasks === true &&
+        p13Res.legacyModesWrap === true &&
         p13Res.circleAligned === true &&
         p13Res.headRightHidden === true &&
         p13Res.productivityHidden === true &&

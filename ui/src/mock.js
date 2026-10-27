@@ -8,6 +8,9 @@ export function createMockSource(options = {}) {
   const pendingMap = new Map();
   let pendingSeq = 0;
   let revSeq = 1;
+  const history = new Map();
+  const importIdentities = new Set();
+  let historySeq = 0;
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth();
 
@@ -76,6 +79,27 @@ export function createMockSource(options = {}) {
     }
   }
 
+  function requireSnapshot(item, expected) {
+    if (!expected) throw new Error("编辑缺少原始快照，请刷新后重试");
+    if (!matchesExpectedSnapshot(item, expected) || ["canEdit", "canDelete", "canComplete"].some(key => item[key] !== expected[key])) {
+      throw new Error("该安排刚刚已发生变化，请刷新后再试");
+    }
+  }
+
+  function cellSnapshot(dates) {
+    return events.filter(item => dates.includes(item.date)).map(cloneItem)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  }
+
+  function saveMutation(dates, before, commit) {
+    const cellsBefore = cellSnapshot(dates);
+    const after = commit();
+    const historyToken = `mock-history-${++historySeq}`;
+    history.set(historyToken, { dates, cellsBefore, cellsAfter: cellSnapshot(dates), before, after, direction: "redo" });
+    if (history.size > 100) history.delete(history.keys().next().value);
+    return { status: "saved", before, after, historyToken };
+  }
+
   function maybePending(summary, commitFn) {
     if (options.requireConfirm) {
       pendingSeq += 1;
@@ -87,8 +111,7 @@ export function createMockSource(options = {}) {
         summary,
       };
     }
-    const item = commitFn();
-    return item ? { ...item, status: "saved" } : { status: "saved" };
+    return commitFn();
   }
 
   return {
@@ -154,8 +177,10 @@ export function createMockSource(options = {}) {
           remoteId: id,
           revision: nextRevision(),
         };
-        events.push(item);
-        return cloneItem(item);
+        return saveMutation([date], null, () => {
+          events.push(item);
+          return cloneItem(item);
+        });
       });
     },
     async itemUpdate(id, date, title, expected = null) {
@@ -166,20 +191,18 @@ export function createMockSource(options = {}) {
       if (item.canEdit === false || item.kind === "note") {
         throw new Error("该类型暂不支持编辑");
       }
-      if (expected && !matchesExpectedSnapshot(item, expected)) {
-        throw new Error("该安排刚刚已发生变化，请刷新后再试");
-      }
+      requireSnapshot(item, expected);
       const cleanTitle = title.trim();
       const expectedCopy = expected ? { ...expected } : null;
       return maybePending(`确认将内容修改为“${cleanTitle}”？`, () => {
         const current = events.find(e => e.id === id);
         if (!current || (date && current.date !== date)) throw new Error("找不到日程");
-        if (expectedCopy && !matchesExpectedSnapshot(current, expectedCopy)) {
-          throw new Error("该安排在确认前已发生变化，请刷新后再试");
-        }
-        current.title = cleanTitle;
-        current.revision = nextRevision();
-        return cloneItem(current);
+        requireSnapshot(current, expectedCopy);
+        return saveMutation([date], cloneItem(current), () => {
+          current.title = cleanTitle;
+          current.revision = nextRevision();
+          return cloneItem(current);
+        });
       });
     },
     async itemToggleDone(id, date, done, expected = null) {
@@ -190,20 +213,18 @@ export function createMockSource(options = {}) {
       if (item.canComplete === false || item.kind === "note") {
         throw new Error("该类型暂不支持完成状态");
       }
-      if (expected && !matchesExpectedSnapshot(item, expected)) {
-        throw new Error("该安排刚刚已发生变化，请刷新后再试");
-      }
+      requireSnapshot(item, expected);
       const nextDone = Boolean(done);
       const expectedCopy = expected ? { ...expected } : null;
       return maybePending(`确认${nextDone ? "标记完成" : "取消完成"}“${item.title}”？`, () => {
         const current = events.find(e => e.id === id);
         if (!current || (date && current.date !== date)) throw new Error("找不到日程");
-        if (expectedCopy && !matchesExpectedSnapshot(current, expectedCopy)) {
-          throw new Error("该安排在确认前已发生变化，请刷新后再试");
-        }
-        current.done = nextDone;
-        current.revision = nextRevision();
-        return cloneItem(current);
+        requireSnapshot(current, expectedCopy);
+        return saveMutation([date], cloneItem(current), () => {
+          current.done = nextDone;
+          current.revision = nextRevision();
+          return cloneItem(current);
+        });
       });
     },
     async itemDelete(id, date, expected = null) {
@@ -216,20 +237,18 @@ export function createMockSource(options = {}) {
       if (item.canDelete === false || item.kind === "note") {
         throw new Error("该类型暂不支持删除");
       }
-      if (expected && !matchesExpectedSnapshot(item, expected)) {
-        throw new Error("该安排刚刚已发生变化，请刷新后再试");
-      }
+      requireSnapshot(item, expected);
       const expectedCopy = expected ? { ...expected } : null;
       return maybePending(`确认删除“${item.title}”？`, () => {
         const idx = events.findIndex(e => e.id === id);
         if (idx < 0) throw new Error("找不到日程");
         const current = events[idx];
         if (date && current.date !== date) throw new Error("找不到日程");
-        if (expectedCopy && !matchesExpectedSnapshot(current, expectedCopy)) {
-          throw new Error("该安排在确认前已发生变化，请刷新后再试");
-        }
-        events.splice(idx, 1);
-        return null;
+        requireSnapshot(current, expectedCopy);
+        return saveMutation([date], cloneItem(current), () => {
+          events.splice(idx, 1);
+          return null;
+        });
       });
     },
     async itemMove(id, fromDate, toDate, expected = null) {
@@ -241,28 +260,60 @@ export function createMockSource(options = {}) {
       if (item.canEdit === false || item.kind === "note") {
         throw new Error("该类型暂不支持移动日期");
       }
-      if (expected && !matchesExpectedSnapshot(item, expected)) {
-        throw new Error("该安排刚刚已发生变化，请刷新后再试");
-      }
-      item.date = toDate;
-      item.revision = nextRevision();
-      return { ...cloneItem(item), status: "saved" };
+      requireSnapshot(item, expected);
+      return saveMutation([...new Set([fromDate, toDate])], cloneItem(item), () => {
+        item.date = toDate;
+        item.revision = nextRevision();
+        return cloneItem(item);
+      });
+    },
+    async itemHistoryApply(historyToken, direction) {
+      ensureWritable();
+      if (!["undo", "redo"].includes(direction)) throw new Error("撤销方向无效");
+      const entry = history.get(historyToken);
+      if (!entry) throw new Error("撤销记录已失效");
+      if (entry.direction === direction) throw new Error("该撤销步骤已经执行");
+      const expected = direction === "undo" ? entry.cellsAfter : entry.cellsBefore;
+      if (JSON.stringify(cellSnapshot(entry.dates)) !== JSON.stringify(expected)) throw new Error("安排已发生变化，请刷新后重试");
+      const restored = direction === "undo" ? entry.cellsBefore : entry.cellsAfter;
+      const remaining = events.filter(item => !entry.dates.includes(item.date));
+      events.splice(0, events.length, ...remaining, ...restored.map(cloneItem));
+      entry.direction = direction;
+      return { status: "saved", historyToken, before: direction === "undo" ? entry.after : entry.before, after: direction === "undo" ? entry.before : entry.after };
     },
     async calendarImportItems(items = []) {
       ensureWritable();
       if (!Array.isArray(items) || !items.length) throw new Error("没有可导入的日程");
-      let imported = 0;
-      for (const entry of items) {
-        if (!entry || !isValidDateKey(entry.date) || !String(entry.title ?? "").trim()) continue;
+      if (items.length > 1000) throw new Error("单次最多导入 1000 条日程");
+      const occurrences = new Map(), staged = [], identities = new Set();
+      let skipped = 0, missingIdentity = false;
+      for (const [index, entry] of items.entries()) {
+        if (!entry) throw new Error(`第 ${index + 1} 条导入项无效；整批未写入`);
         const normTime = String(entry.time ?? "").trim();
-        const isEvent = Boolean(normTime);
-        const id = `mock-import-${Date.now()}-${imported}-${Math.random().toString(36).slice(2, 6)}`;
-        events.push({
+        validateCrudInput({ date: entry.date, title: entry.title, time: normTime, checkTime: true });
+        if (!isValidDateKey(entry.date) || entry.title.includes("\0") || new TextEncoder().encode(entry.title.trim()).length > 16384) throw new Error("导入项内容无效；整批未写入");
+        const uid = entry.uid ?? "", source = entry.source || "ics", done = entry.done ?? false, kind = entry.kind ?? "";
+        if (typeof uid !== "string" || typeof source !== "string" || typeof done !== "boolean" || uid.length > 4096 || source.length > 4096) throw new Error("导入项来源身份无效；整批未写入");
+        if (!["", "item", "event"].includes(kind) || (kind === "item" && normTime)) throw new Error("导入项类型无效；整批未写入");
+        let identity;
+        if (uid) identity = `uid:${JSON.stringify([source, uid])}`;
+        else {
+          missingIdentity = true;
+          const content = JSON.stringify([source, kind, entry.date, normTime, entry.title.trim(), done]);
+          const ordinal = (occurrences.get(content) || 0) + 1;
+          occurrences.set(content, ordinal);
+          identity = `content:${content}:${ordinal}`;
+        }
+        if (importIdentities.has(identity) || identities.has(identity)) { skipped++; continue; }
+        identities.add(identity);
+        const isEvent = kind === "event" || Boolean(normTime);
+        const id = `mock-import-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`;
+        staged.push({
           id,
           date: entry.date,
           time: normTime,
           title: String(entry.title).trim(),
-          done: false,
+          done,
           kind: isEvent ? "event" : "item",
           canEdit: true,
           canDelete: true,
@@ -271,9 +322,11 @@ export function createMockSource(options = {}) {
           remoteId: id,
           revision: nextRevision(),
         });
-        imported += 1;
       }
-      return { status: "saved", imported };
+      events.push(...staged);
+      for (const identity of identities) importIdentities.add(identity);
+      const warnings = missingIdentity ? ["部分日程没有 UID：按内容及本批相同内容的出现次数识别；内容或批次组成改变后无法保证来源身份。"] : [];
+      return { status: "saved", imported: staged.length, skipped, invalid: 0, unsupported: 0, warnings };
     },
     async itemConfirm(pendingId, accept) {
       const id = String(pendingId ?? "");
@@ -285,8 +338,7 @@ export function createMockSource(options = {}) {
       if (!accept) {
         return { status: "cancelled" };
       }
-      const item = commitFn();
-      return item ? { ...item, status: "saved" } : { status: "saved" };
+      return commitFn();
     },
     /** 仅测试辅助：模拟确认期间外部改动导致 revision 变化 */
     _touchItemForTest(id, patch = {}) {

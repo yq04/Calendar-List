@@ -7,6 +7,9 @@ use windows_sys::Win32::{
 const MUTEX_NAME: &str = "Local\\Kal-SingleInstance-Mutex-v2";
 pub(crate) const EVENT_NAME: &str = "Local\\Kal-Activate-v2";
 
+/// Isolated runs must not acquire or signal the production session objects.
+pub fn is_isolated() -> bool { crate::store::is_isolated() }
+
 pub(crate) fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
 }

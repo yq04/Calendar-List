@@ -7,15 +7,15 @@
 **轻量、温润、像壁纸一样自然融入桌面的 Windows 嵌入式日历与待办清单**  
 *A Lightweight, Wallpaper-Fused Desktop Calendar & Todo List for Windows — Powered by Rust + Tauri v2*
 
-[![Release v0.1.1](https://img.shields.io/badge/release-v0.1.1-2649A0?style=flat-square)](https://github.com/yq04/Calendar-List/releases/tag/v0.1.1)
+[![Release v0.1.2](https://img.shields.io/badge/release-v0.1.2-2649A0?style=flat-square)](https://github.com/yq04/Calendar-List/releases/tag/v0.1.2)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078d4?style=flat-square)](https://github.com/yq04/Calendar-List/releases)
-[![Installer Size](https://img.shields.io/badge/installer-2.27%20MB-10b981?style=flat-square)](https://github.com/yq04/Calendar-List/releases/download/v0.1.1/CalendarList_0.1.1_x64-setup.exe)
+[![Installer Size](https://img.shields.io/badge/installer-2.30%20MB-10b981?style=flat-square)](https://github.com/yq04/Calendar-List/releases/download/v0.1.2/CalendarList_0.1.2_x64-setup.exe)
 [![Tech Stack](https://img.shields.io/badge/stack-Rust%20%2B%20Tauri%20v2-dea584?style=flat-square)](src-tauri/Cargo.toml)
 [![Frontend](https://img.shields.io/badge/frontend-Zero--Bundle%20ESM-0ea5e9?style=flat-square)](ui/src/main.js)
-[![Tests](https://img.shields.io/badge/tests-132%20unit%20%7C%2043%20E2E%20%7C%2029%20Rust-16a34a?style=flat-square)](tools/ui-check.mjs)
+[![Tests](https://img.shields.io/badge/tests-10%20前端组%20%7C%2043%20E2E%20%7C%2034%20Rust-16a34a?style=flat-square)](tools/ui-check.mjs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-64748b?style=flat-square)](LICENSE)
 
-[**⬇️ 下载 Windows x64 安装包 (v0.1.1 · 2.27 MB)**](https://github.com/yq04/Calendar-List/releases/download/v0.1.1/CalendarList_0.1.1_x64-setup.exe) · [**📋 v0.1.1 发行说明**](docs/RELEASE_NOTES_0.1.1.md) · [**🎨 主题与色板说明**](docs/theme-presets.md) · [**⚡ 性能基线报告**](docs/performance-baseline.md)
+[**⬇️ 下载 Windows x64 安装包 (v0.1.2 · 2.30 MB)**](https://github.com/yq04/Calendar-List/releases/download/v0.1.2/CalendarList_0.1.2_x64-setup.exe) · [**📋 v0.1.2 发行说明**](docs/RELEASE_NOTES_0.1.2.md) · [**🎨 主题与色板说明**](docs/theme-presets.md) · [**⚡ 性能基线报告**](docs/performance-baseline.md)
 
 </div>
 
@@ -32,7 +32,7 @@
 - 🖥️ **多显示器 / 横竖屏 / 24" & 27" 物理 PPI 自适应**：基于 Win32 `EnumDisplayMonitors` 与 GDI 物理毫米尺寸检测，精准识别单屏/双屏/多屏、**横屏（Landscape）与竖屏（Portrait 旋转副屏）**、不同分辨率与 DPI 缩放；内置 **8 种桌面固定预设**（含专为竖屏副屏设计的「占据屏幕上半区 / 下半区」），窗口跨越屏幕边缘时自动重算 PPI 字号比例。
 - ✍️ **左右双侧原位直编 + 中文自然语言速记**：在**左侧 42 格日历任意格子双击直接打字**，或在**右侧每日清单原位新建/双击修改**；默认不强制填写时间，同时支持输入 `明天下午3点半 项目评审 !1 #核心` 自动解析日期、时刻、优先级与标签。
 - 🎨 **护眼素纸美学 + OKLab 壁纸智能取色**：默认搭载「星港素纸」暖白护眼主题，内置 **5 套高对比度主题**、**6 套窗口质感配方**、**6 套精选字体与本地私有字体搜索导入**，并可通过 **OKLab 加权 k-means + 二分对比度求解** 从桌面壁纸实时生成符合 WCAG AA/AAA 标准的专属配色。
-- 🗓️ **本土化日历与开放格式导出**：内置 1900–2100 农历、干支纪年、二十四节气、法定节假日「休/班」角标（兼容 `holiday-cn` 自定义 JSON）、可开关的传统黄历宜忌、单日 8 色底色标记，以及 **A4 横向满幅矢量 PDF / Markdown (`.md`) / 标准 iCalendar (`.ics`)** 双向导入导出。
+- 🗓️ **本土化日历与开放格式导出**：内置 1900–2100 农历、干支纪年、二十四节气、法定节假日「休/班」角标（兼容 `holiday-cn` 自定义 JSON）、可开关的传统黄历宜忌、单日 8 色底色标记，以及 **A4 横向满幅矢量 PDF / Markdown (`.md`) / [轻量 iCalendar (`.ics` 有限子集)](docs/calendar-interoperability.md)** 导入与导出。
 
 ---
 
@@ -84,7 +84,7 @@
 | **双侧直编与 NLP 速记** | 左格双击新建、左格双击事项改字、右侧顶部快速输入、右侧底部 `+ 添加安排`；默认无时间负担，支持中文自然语言解析（日期/时间/跨天/`!1` 优先级/`#标签`）及单日 **8 色底色高亮标记** |
 | **效率流转与生产力** | 跨日期格拖拽改期（`6px` 防误触阈值）、`Alt + 点击` 日格事项快速勾选完成、当日未完事项一键顺延（`+1天` / `Shift` 顺延下周）、多步撤销重做（`Ctrl+Z` / `Ctrl+Y`）、重要日期倒计时、跨日期便签本 CRUD |
 | **主题、质感与字体** | 5 套内置主题、6 套窗口质感（温润实底 / 全透悬浮 / 冰晶毛玻璃 / 轻透壁纸 / 深邃暗晶 / 画布艺境）、4 套排版模板、6 套精选字体模板、系统字体与本地私有字体（`.ttf/.otf/.woff2`）同页搜索与导入 |
-| **多格式导出与打印** | **A4 / A3 / Letter 横向或纵向满幅矢量 PDF**（格内自动换行零截断）、7 列 GFM **Markdown (`.md`)** 归档导出、RFC 5545 标准 **iCalendar (`.ics`)** 导入与导出 |
+| **多格式导出与打印** | **A4 / A3 / Letter 横向或纵向满幅矢量 PDF**（格内自动换行零截断）、7 列 GFM **Markdown (`.md`)** 归档导出、[轻量 iCalendar (`.ics`) 导入导出](docs/calendar-interoperability.md)（仅支持单日一次性日程，不含重复规则/时区扩展） |
 
 ---
 
@@ -109,15 +109,15 @@
 
 ## 📦 下载与安装
 
-前往 [**GitHub Releases (`v0.1.1`)**](https://github.com/yq04/Calendar-List/releases/tag/v0.1.1) 下载最新 Windows x64 安装包：
+前往 [**GitHub Releases (`v0.1.2`)**](https://github.com/yq04/Calendar-List/releases/tag/v0.1.2) 下载最新 Windows x64 安装包：
 
-- **安装包文件**：[`CalendarList_0.1.1_x64-setup.exe`](https://github.com/yq04/Calendar-List/releases/download/v0.1.1/CalendarList_0.1.1_x64-setup.exe)
-- **安装包大小**：`2,382,925` 字节（约 `2.27 MB`）
-- **SHA-256 校验值**：`74343e78d8b377801b47d7bbda2dcd3b07000d164baaacae96279e7b846ae907`
+- **安装包文件**：[`CalendarList_0.1.2_x64-setup.exe`](https://github.com/yq04/Calendar-List/releases/download/v0.1.2/CalendarList_0.1.2_x64-setup.exe)
+- **安装包大小**：`2,416,411` 字节（约 `2.30 MB`）
+- **SHA-256 校验值**：`56ae93b2aa4cdff8e600aae3f9e2b57a1126ba32b58b5fe2b04eb843fecd8a35`
 - **系统要求**：Windows 10 / Windows 11 (x64)，内置 WebView2 Runtime（Windows 11 及现代 Windows 10 已默认自带）。
-- **覆盖升级与就地数据继承**：双击安装包点击「下一步」即可直接覆盖升级，默认自动保留并继承全部日程、设置、主题与日志（存储于安装目录下的 `data/` 文件夹，不占用 C 盘）；或通过 PowerShell 指定安装目录（例如部署至 `D:\1_app\CalendarList`）：
+- **覆盖升级与就地数据继承**：双击安装包点击「下一步」即可直接覆盖升级，设计上默认保留并继承全部日程、设置、主题与日志（存储于安装目录下的 `data/` 文件夹，不占用 C 盘；**注：目前仅完成隔离与合成环境测试，旧版向新版的实机覆盖升级全流程尚待进一步最终验收**）；或通过 PowerShell 指定安装目录（例如部署至 `D:\1_app\CalendarList`）：
   ```powershell
-  Start-Process -FilePath .\CalendarList_0.1.1_x64-setup.exe -ArgumentList "/S /D=D:\1_app\CalendarList" -Wait
+  Start-Process -FilePath .\CalendarList_0.1.2_x64-setup.exe -ArgumentList "/S /D=D:\1_app\CalendarList" -Wait
   ```
 
 ---
@@ -178,7 +178,7 @@ cd Calendar-List
 # 开发模式启动
 cargo run --manifest-path src-tauri/Cargo.toml
 
-# 构建 Windows x64 NSIS 安装程序 (CalendarList_0.1.0_x64-setup.exe)
+# 构建 Windows x64 NSIS 安装程序 (CalendarList_0.1.2_x64-setup.exe)
 cd src-tauri
 cargo tauri build --bundles nsis
 ```
@@ -195,15 +195,15 @@ kal --selftest                          # 运行 Rust 端色彩与主题生成�
 ### 4. 运行全量自动化测试套件
 
 ```powershell
-# 1. 前端纯函数、农历节气、NLP 解析、主题映射与输入会话自检 (132 项 + 主题/生产力自检)
+# 1. 前端纯函数、农历节气、NLP 解析、主题映射与输入会话自检 (10 组前端测试套件，在隔离/Mock环境下运行)
 node ui/_selftest.mjs
 node ui/_themes-selftest.mjs
 node ui/_productivity-selftest.mjs
 
-# 2. Edge CDP 真实 DOM 端到端交互自检 (42 项，覆盖设置还原、壁纸透明度、多屏横竖屏适配与双侧直编)
+# 2. Edge CDP 真实 DOM 端到端交互测试 (43 项，在隔离与 Mock 环境下进行)
 node tools/ui-check.mjs
 
-# 3. Rust 核心单元与集成测试 (29 项)
+# 3. Rust 核心单元与存储安全测试 (34 项，在隔离临时环境下进行)
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 

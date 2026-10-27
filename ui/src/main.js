@@ -13,12 +13,13 @@ import {
   buildIcsCalendar, buildMarkdownCalendar, buildPrintableCalendarHtml,
 } from "./calendar.js";
 import {
-  parseNaturalEntry, parseTaskDecorations, parseIcsCalendar,
+  parseNaturalEntry, parseTaskDecorations, parseIcsCalendarDetailed,
   addDaysToKey, CELL_HIGHLIGHT_PALETTE,
 } from "./nlp-parser.js";
 import { createDraftSessions, bindImeGuard, isImeComposing } from "./input-session.js";
 import { createBridge } from "./bridge.js";
-import { applyTheme, setUiScale, DEFAULT_THEME, normalizeTheme, mergeThemeAppearance, applyStyleRecipe } from "./theme.js";
+import { createHistoryController, createSnapshotHistoryEntry } from "./history.js";
+import { applyTheme, setUiScale, DEFAULT_THEME, normalizeTheme, mergeThemeAppearance, applyStyleRecipe, applySteadyWallAlpha } from "./theme.js";
 import { createPanel } from "./panel.js";
 import { buildSearchViewModel, SEARCH_LIMIT } from "./search.js";
 import { createSearchScheduler } from "./search-scheduler.js";
@@ -85,6 +86,7 @@ const state = {
 };
 
 const renderGuard = createSeqGuard();
+const history = createHistoryController(state.undoStack, state.redoStack);
 const agendaGuard = createSeqGuard();
 const searchGuard = createSeqGuard();
 const themeGuard = createSeqGuard();
@@ -253,7 +255,9 @@ async function createArrangementQuick(rawInput, baseDateKey) {
       return lastRes;
     },
     {
-      onConfirmed: () => {
+      onConfirmed: result => {
+        if (targetDates.length === 1) recordItemHistory("create", result, `添加「${finalTitle}」`);
+        else { history.clear(); syncUndoButton(); }
         panel?.addLog?.("schedule", `新增安排「${finalTitle}」(${targetDate}${finalTime ? " " + finalTime : " 全天"})`);
       },
     },
@@ -455,14 +459,10 @@ function openCellInlineTaskEdit(taskEl, ev) {
         const delOutcome = await writeAction(
           () => bridge.itemDelete(ev.id, ev.date, expected),
           {
-            onConfirmed: () => {
+            onConfirmed: result => {
               const prevTitle = ev.title;
-              const prevTime = ev.time || "";
               const prevDate = ev.date;
-              pushUndoAction({
-                label: `删除「${prevTitle}」`,
-                undo: () => bridge.itemCreate(prevDate, prevTitle, prevTime),
-              });
+              recordItemHistory("delete", result, `删除「${prevTitle}」`);
               panel?.addLog?.("schedule", `左栏清空删除安排「${prevTitle}」(${prevDate})`);
             },
             onCancelled: () => {
@@ -497,13 +497,9 @@ function openCellInlineTaskEdit(taskEl, ev) {
     const outcome = await writeAction(
       () => bridge.itemUpdate(ev.id, ev.date, nextTitle, expected),
       {
-        onConfirmed: () => {
+        onConfirmed: result => {
           const prevTitle = ev.title;
-          pushUndoAction({
-            label: `编辑「${prevTitle}」`,
-            undo: () => bridge.itemUpdate(ev.id, ev.date, prevTitle, null),
-            redo: () => bridge.itemUpdate(ev.id, ev.date, nextTitle, null),
-          });
+          recordItemHistory("update", result, `编辑「${prevTitle}」`);
           panel?.addLog?.("schedule", `左栏直编安排「${prevTitle}」→「${nextTitle}」(${ev.date})`);
         },
         onCancelled: () => {
@@ -557,44 +553,48 @@ function syncUndoButton() {
 }
 
 function pushUndoAction(entry) {
-  if (!entry || typeof entry.undo !== "function") return;
-  state.undoStack.push(entry);
-  if (state.undoStack.length > 20) state.undoStack.shift();
-  state.redoStack.length = 0;
+  history.push(entry);
   syncUndoButton();
 }
 
-async function performUndo() {
-  if (state.writeBusy || state.pendingConfirm || !state.undoStack.length) return;
-  const entry = state.undoStack.pop();
-  syncUndoButton();
-  try {
-    await entry.undo();
-    if (typeof entry.redo === "function") {
-      state.redoStack.push(entry);
-    }
-    invalidateReads();
-    await render();
-    setWriteStatus(`已撤销：${entry.label}`, false);
-  } catch (err) {
-    setWriteStatus(`撤销失败：${sanitizeUserMessage(err?.message || String(err))}`, true);
+function recordItemHistory(operation, result, label) {
+  const entry = createSnapshotHistoryEntry(bridge, operation, result, label);
+  // A write without exact backend history invalidates old positional task identities.
+  if (!entry) {
+    history.clear();
+    setWriteStatus("已保存；当前来源暂不支持撤销此操作", false);
   }
+  else pushUndoAction(entry);
+  syncUndoButton();
 }
 
-async function performRedo() {
-  if (state.writeBusy || state.pendingConfirm || !state.redoStack.length) return;
-  const entry = state.redoStack.pop();
-  try {
-    await entry.redo();
-    state.undoStack.push(entry);
-    syncUndoButton();
-    invalidateReads();
-    await render();
-    setWriteStatus(`已重做：${entry.label}`, false);
-  } catch (err) {
-    setWriteStatus(`重做失败：${sanitizeUserMessage(err?.message || String(err))}`, true);
-  }
+async function performHistory(direction) {
+  if (state.writeBusy || state.pendingConfirm) return;
+  const step = history.begin(direction);
+  if (!step) return;
+  const verb = direction === "undo" ? "撤销" : "重做";
+  let applied = false;
+  const outcome = await writeAction(step.apply, {
+    requiresCalendarWrite: !step.entry.local,
+    onConfirmed: result => {
+      try {
+        applied = step.confirm(result);
+        syncUndoButton();
+        if (applied) setWriteStatus(`已${verb}：${step.entry.label}`, false);
+      } catch (err) {
+        history.clear();
+        syncUndoButton();
+        setWriteStatus(sanitizeUserMessage(err?.message), true);
+      }
+    },
+    onCancelled: () => step.cancel(),
+  });
+  if (outcome !== "pending") step.cancel();
+  if (applied) setWriteStatus(`已${verb}：${step.entry.label}`, false);
 }
+
+async function performUndo() { return performHistory("undo"); }
+async function performRedo() { return performHistory("redo"); }
 
 // ---------------------------------------------------------------- 自然语言速记实时预览胶囊
 
@@ -672,7 +672,7 @@ function renderCellColorBar(dateKey) {
 }
 
 async function setCellBgColor(dateKey, colorId) {
-  if (!dateKey) return;
+  if (!dateKey || state.writeBusy || state.pendingConfirm) return;
   const prevColor = state.cellColors?.[dateKey] || "";
   const nextColor = prevColor === colorId && colorId !== "" ? "" : colorId;
   const applyLocal = (cId) => {
@@ -687,23 +687,21 @@ async function setCellBgColor(dateKey, colorId) {
     if (state.selected === dateKey) renderCellColorBar(dateKey);
   };
 
-  applyLocal(nextColor);
-  try {
-    await bridge.settingsSet({ cellColors: { ...state.cellColors } });
+  const persist = async color => {
+    const colors = { ...state.cellColors };
+    colors[dateKey] = color;
+    await bridge.settingsSet({ cellColors: colors });
+    applyLocal(color);
+    return { status: "saved" };
+  };
+  await writeAction(() => persist(nextColor), { onConfirmed: () => {
     pushUndoAction({
       label: `${dateKey} 底色标记`,
-      undo: async () => {
-        applyLocal(prevColor);
-        await bridge.settingsSet({ cellColors: { ...state.cellColors } });
-      },
-      redo: async () => {
-        applyLocal(nextColor);
-        await bridge.settingsSet({ cellColors: { ...state.cellColors } });
-      },
+      local: true,
+      undo: () => persist(prevColor),
+      redo: () => persist(nextColor),
     });
-  } catch (err) {
-    setWriteStatus(sanitizeUserMessage(err?.message || String(err)), true);
-  }
+  }, requiresCalendarWrite: false });
 }
 
 // ---------------------------------------------------------------- +N 更多浮层
@@ -729,7 +727,9 @@ function openDayMorePopover(dateKey, fullList) {
       checkBtn.addEventListener("click", async e => {
         e.stopPropagation();
         const expected = buildExpectedSnapshot(ev);
-        await writeAction(() => bridge.itemToggleDone(ev.id, ev.date, !ev.done, expected));
+        await writeAction(() => bridge.itemToggleDone(ev.id, ev.date, !ev.done, expected), {
+          onConfirmed: result => recordItemHistory("toggle", result, `${ev.done ? "取消完成" : "完成"}「${ev.title}」`),
+        });
         closeDayMorePopover();
       });
       li.appendChild(checkBtn);
@@ -757,36 +757,18 @@ async function moveItemBetweenDates(ev, toDateKey) {
 
   const outcome = await writeAction(
     async () => {
-      if (typeof bridge.itemMove === "function") {
-        return await bridge.itemMove(ev.id, fromDateKey, toDateKey, expected);
-      }
-      await bridge.itemCreate(toDateKey, ev.title, ev.time || "");
-      return await bridge.itemDelete(ev.id, fromDateKey, expected);
+      if (typeof bridge.itemMove !== "function") throw new Error("当前来源暂不支持移动日期");
+      return await bridge.itemMove(ev.id, fromDateKey, toDateKey, expected);
     },
     {
-      onConfirmed: () => {
-        pushUndoAction({
-          label: `将“${ev.title}”移至 ${toDateKey}`,
-          undo: async () => {
-            const movedItems = await bridge.dayEvents(toDateKey);
-            const target = movedItems.find(x => x.title === ev.title && (x.time || "") === (ev.time || ""));
-            if (target && typeof bridge.itemMove === "function") {
-              await bridge.itemMove(target.id, toDateKey, fromDateKey, buildExpectedSnapshot(target));
-            }
-          },
-          redo: async () => {
-            const origItems = await bridge.dayEvents(fromDateKey);
-            const target = origItems.find(x => x.title === ev.title && (x.time || "") === (ev.time || ""));
-            if (target && typeof bridge.itemMove === "function") {
-              await bridge.itemMove(target.id, fromDateKey, toDateKey, buildExpectedSnapshot(target));
-            }
-          },
-        });
+      onConfirmed: result => {
+        recordItemHistory("move", result, `将“${ev.title}”移至 ${toDateKey}`);
       },
     },
   );
   if (outcome === "saved") {
-    setWriteStatus(`已将“${ev.title}”改期至 ${toDateKey}（可按 Ctrl+Z 撤销）`, false);
+    const undoHint = state.undoStack.length ? "（可按 Ctrl+Z 撤销）" : "（当前来源暂不支持撤销）";
+    setWriteStatus(`已将“${ev.title}”改期至 ${toDateKey}${undoHint}`, false);
     panel?.addLog?.("schedule", `改期「${ev.title}」(${fromDateKey} → ${toDateKey})`);
   }
 }
@@ -908,7 +890,6 @@ function renderGrid(cells, byDay) {
   const frag = document.createDocumentFragment();
   const selIdx = Math.max(0, cells.findIndex(c => c.key === state.selected));
   const selRow = Math.floor(selIdx / 7);
-  const taskLimit = state.viewMode === "week" ? Math.max(state.maxTasks, 8) : state.maxTasks;
 
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
@@ -979,10 +960,9 @@ function renderGrid(cells, byDay) {
       cell.classList.add("is-crowded");
     }
     if (list.length) {
-      const cellLimit = taskLimit;
       const tasks = document.createElement("div");
       tasks.className = "kal-tasks";
-      list.slice(0, cellLimit).forEach((ev, idx) => {
+      list.forEach((ev, idx) => {
         const dec = parseTaskDecorations(ev.title);
         const cleanText = (dec.isMultiDay || dec.priority || dec.tags.length)
           ? (dec.cleanTitle || ev.title)
@@ -1014,18 +994,6 @@ function renderGrid(cells, byDay) {
         tasks.appendChild(t);
       });
       cell.appendChild(tasks);
-      if (list.length > cellLimit) {
-        const more = document.createElement("div");
-        more.className = "kal-task-more";
-        more.textContent = `+${list.length - cellLimit} 更多`;
-        more.title = `点击查看当日全部 ${list.length} 项安排`;
-        more.addEventListener("click", e => {
-          e.stopPropagation();
-          selectDay(c.key);
-          openDayMorePopover(c.key, list);
-        });
-        cell.appendChild(more);
-      }
     }
 
     if (rawList.length > 3) {
@@ -1201,14 +1169,10 @@ async function renderAgenda(key, byDay, seqToken = agendaGuard.next()) {
       const toggle = async () => writeAction(
         () => bridge.itemToggleDone(ev.id, ev.date, !ev.done, expected),
         {
-          onConfirmed: () => {
+          onConfirmed: result => {
             const prevDone = Boolean(ev.done);
             const nextDone = !prevDone;
-            pushUndoAction({
-              label: `${nextDone ? "完成" : "取消完成"}「${ev.title}」`,
-              undo: () => bridge.itemToggleDone(ev.id, ev.date, prevDone, null),
-              redo: () => bridge.itemToggleDone(ev.id, ev.date, nextDone, null),
-            });
+            recordItemHistory("toggle", result, `${nextDone ? "完成" : "取消完成"}「${ev.title}」`);
             panel?.addLog?.("schedule", `${nextDone ? "完成" : "取消完成"}安排「${ev.title}」(${ev.date})`);
           },
         },
@@ -1453,6 +1417,8 @@ function syncWriteUi() {
   if (el["kal-agenda-inline-trigger"]) el["kal-agenda-inline-trigger"].disabled = blocked;
   renderPendingBox();
   renderWriteStatusBar();
+  if (el["kal-undo-btn"]) el["kal-undo-btn"].disabled = state.writeBusy || Boolean(state.pendingConfirm)
+    || (!state.writeStatus.available && !state.undoStack[state.undoStack.length - 1]?.local);
 }
 
 async function refreshWriteStatus() {
@@ -1505,7 +1471,7 @@ async function resolvePendingConfirm(accept) {
   }
   invalidateReads();
   setWriteStatus("", false);
-  pending.onConfirmed?.();
+  pending.onConfirmed?.(res);
   syncWriteUi();
   try {
     await render();
@@ -1516,7 +1482,7 @@ async function resolvePendingConfirm(accept) {
   }
 }
 
-async function writeAction(action, { onConfirmed, onCancelled } = {}) {
+async function writeAction(action, { onConfirmed, onCancelled, requiresCalendarWrite = true } = {}) {
   if (state.pendingConfirm) {
     setWriteStatus("请先确认或取消当前待定的修改", true);
     return "blocked";
@@ -1524,7 +1490,7 @@ async function writeAction(action, { onConfirmed, onCancelled } = {}) {
   if (state.writeBusy) {
     return "blocked";
   }
-  if (!state.writeStatus.available) {
+  if (requiresCalendarWrite && !state.writeStatus.available) {
     setWriteStatus(state.writeStatus.hint || "当前不可保存修改", true);
     return "blocked";
   }
@@ -1569,7 +1535,7 @@ async function writeAction(action, { onConfirmed, onCancelled } = {}) {
 
   invalidateReads();
   setWriteStatus("", false);
-  onConfirmed?.();
+  onConfirmed?.(rawResult);
   syncWriteUi();
   try {
     await render();
@@ -1629,14 +1595,10 @@ function beginAgendaEdit(li, textEl, ev, focus = true) {
     };
     input.dataset.editSession = draft.session;
     const outcome = await writeAction(() => bridge.itemUpdate(ev.id, ev.date, value, snapshot.expected), {
-      onConfirmed: () => {
+      onConfirmed: result => {
         editDrafts.acknowledge(snapshot);
         const prevTitle = ev.title;
-        pushUndoAction({
-          label: `编辑「${prevTitle}」`,
-          undo: () => bridge.itemUpdate(ev.id, ev.date, prevTitle, null),
-          redo: () => bridge.itemUpdate(ev.id, ev.date, value, null),
-        });
+        recordItemHistory("update", result, `编辑「${prevTitle}」`);
         panel?.addLog?.("schedule", `编辑安排「${prevTitle}」→「${value}」(${ev.date})`);
       },
       onCancelled: release,
@@ -1687,15 +1649,11 @@ function beginInlineDelete(li, delBtn, ev) {
     const outcome = await writeAction(
       () => bridge.itemDelete(ev.id, ev.date, expected),
       {
-        onConfirmed: () => {
+        onConfirmed: result => {
           const delDate = ev.date;
           const delTitle = ev.title;
           const delTime = ev.time || "";
-          pushUndoAction({
-            label: `删除「${delTitle}」`,
-            undo: () => bridge.itemCreate(delDate, delTitle, delTime),
-            redo: null,
-          });
+          recordItemHistory("delete", result, `删除「${delTitle}」`);
           panel?.addLog?.("schedule", `删除安排「${delTitle}」(${delDate})`);
         },
         onCancelled: () => restore(),
@@ -1965,6 +1923,10 @@ function toggleViewMode() {
     btn.classList.toggle("is-active", isWeek);
     btn.setAttribute("aria-pressed", String(isWeek));
     btn.textContent = isWeek ? "月视图" : "周视图";
+  }
+  for (const [id, label] of [["kal-prev", isWeek ? "上一周" : "上个月"], ["kal-next", isWeek ? "下一周" : "下个月"]]) {
+    const button = document.getElementById(id);
+    if (button) { button.title = label; button.setAttribute("aria-label", label); }
   }
   render();
 }
@@ -2354,22 +2316,46 @@ function printCalendarPreview() {
 }
 
 async function importIcsCalendarText(icsText) {
-  const items = parseIcsCalendar(icsText);
-  if (!items.length) {
-    setExportStatus("未在 .ics 文件中解析到有效 VEVENT 日程", true);
+  if (state.writeBusy || state.pendingConfirm) {
+    setExportStatus("请先完成当前保存或确认操作", true);
     return 0;
   }
+  const { items, skipped, warnings, errors } = parseIcsCalendarDetailed(icsText);
+  const details = [
+    skipped.length ? `跳过 ${skipped.length} 项` : "",
+    ...skipped.map(item => `第 ${item.index} 项${item.title ? `「${item.title}」` : ""}：${item.reason}`),
+    ...warnings, ...errors,
+  ].filter(Boolean).join("；");
+  if (errors.length) {
+    setExportStatus(`未导入：${details}`, true);
+    return 0;
+  }
+  if (!items.length) {
+    setExportStatus(`未在 .ics 文件中解析到可导入的日程${details ? `；${details}` : ""}`, true);
+    return 0;
+  }
+  state.writeBusy = true;
+  syncWriteUi();
   try {
     const res = await bridge.calendarImportItems(items);
-    const count = res?.imported ?? items.length;
+    if (res?.status !== "saved" || !Number.isInteger(res?.imported)) throw new Error("导入结果无效，请刷新后核对");
+    const count = res.imported;
+    const backendDetails = [res.skipped ? `已导入过，跳过 ${res.skipped} 项` : "", ...(res.warnings || [])].filter(Boolean).join("；");
+    const allDetails = [details, backendDetails].filter(Boolean).join("；");
+    history.clear();
+    syncUndoButton();
     invalidateReads();
     await render();
-    setExportStatus(`成功导入 ${count} 条 iCalendar (.ics) 日程`, false);
-    setWriteStatus(`已导入 ${count} 条 .ics 日程`, false);
+    setExportStatus(`成功导入 ${count} 条 iCalendar (.ics) 日程${allDetails ? `；${allDetails}` : ""}`, false);
+    const skipCount = skipped.length + (res.skipped || 0);
+    setWriteStatus(`已导入 ${count} 条 .ics 日程${skipCount ? `，跳过 ${skipCount} 项` : ""}`, false);
     return count;
   } catch (err) {
     setExportStatus(`导入 .ics 失败：${sanitizeUserMessage(err?.message || String(err))}`, true);
     return 0;
+  } finally {
+    state.writeBusy = false;
+    syncWriteUi();
   }
 }
 
@@ -2782,26 +2768,42 @@ async function factoryResetTheme() {
   if (needsRender) await render();
 }
 
-async function commitQuickAlpha(nextTheme) {
-  const norm = normalizeTheme(nextTheme);
-  norm.presetId = norm.presetId || state.draft?.presetId || state.applied?.presetId || "";
-  const needsRender = applyDraft(norm);
+async function commitQuickAlpha(operation) {
+  if (themeSaving) return false;
+  if (!operation || !["alpha", "agenda"].includes(operation.kind)) {
+    panel?.setReportText("快捷设置参数无效，未保存。", true);
+    return false;
+  }
+  if (operation.kind === "alpha" && (!Number.isFinite(operation.value) || operation.value < 0 || operation.value > 1)) return false;
+  if (operation.kind === "agenda" && !["side", "hidden"].includes(operation.value)) return false;
+  const transform = theme => operation.kind === "alpha"
+    ? applySteadyWallAlpha(theme, operation.value)
+    : normalizeTheme({ ...structuredClone(theme), layout: { ...theme.layout, agenda: operation.value } });
+  themeGuard.next();
+  themeSaving = true;
+  panel?.setBusy(true);
   try {
     const prevTheme = state.applied ? structuredClone(state.applied) : null;
-    const toSave = structuredClone(norm);
+    const toSave = transform(state.applied);
     toSave.id = "";
     const saved = normalizeTheme(await bridge.themeCommit(toSave));
     cleanupSupersededUserTheme(prevTheme, saved);
-    saved.presetId = norm.presetId;
+    saved.presetId = state.applied?.presetId || "";
+    const nextDraft = transform(state.draft);
+    const nextSnapshot = transform(themeSnapshot || state.applied);
     state.applied = saved;
-    state.draft = structuredClone(saved);
-    themeSnapshot = structuredClone(saved);
-  } catch {
-    state.applied = norm;
-    themeSnapshot = structuredClone(norm);
+    const needsRender = applyDraft(nextDraft);
+    themeSnapshot = nextSnapshot;
+    panel?.sync();
+    if (needsRender) await render();
+    return true;
+  } catch (err) {
+    panel?.setReportText(`快捷设置保存失败，草稿仍保留：${sanitizeUserMessage(err?.message || String(err))}`, true);
+    return false;
+  } finally {
+    themeSaving = false;
+    panel?.setBusy(false);
   }
-  panel?.sync();
-  if (needsRender) await render();
 }
 
 async function regen(opts = {}) {
@@ -3310,7 +3312,9 @@ function bindControls() {
         return lastRes;
       },
       {
-        onConfirmed: () => {
+        onConfirmed: result => {
+          if (targetDates.length === 1) recordItemHistory("create", result, `添加「${finalTitle}」`);
+          else { history.clear(); syncUndoButton(); }
           if (quickDate === snapshot.key) rememberQuickDraft();
           if (quickDrafts.acknowledge(snapshot) && quickDate === snapshot.key) {
             quickInput.value = "";

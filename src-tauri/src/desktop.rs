@@ -58,19 +58,22 @@ fn register(status: &mut Status, enabled: bool) {
 
 impl Controller {
     pub fn new(app: tauri::AppHandle) -> Self {
-        let status = Arc::new(Mutex::new(initial_status(&crate::store::read_settings())));
+        let isolated = crate::store::is_isolated();
+        let mut initial = initial_status(&crate::store::read_settings());
+        if isolated { initial.enabled = false; }
+        let status = Arc::new(Mutex::new(initial));
         let shared = status.clone();
         let (tx, rx) = mpsc::channel();
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
         let worker = std::thread::spawn(move || unsafe {
-            let event = CreateEventW(std::ptr::null(), 0, 0, crate::single_instance::wide(crate::single_instance::EVENT_NAME).as_ptr());
+            let event = if isolated { std::ptr::null_mut() } else { CreateEventW(std::ptr::null(), 0, 0, crate::single_instance::wide(crate::single_instance::EVENT_NAME).as_ptr()) };
             let mut message: MSG = std::mem::zeroed();
             PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_NOREMOVE);
             {
                 let mut current = shared.lock().unwrap();
                 let enabled = current.enabled;
                 register(&mut current, enabled);
-                if event.is_null() { current.error = Some("无法接收重复启动呼出通知。".into()); }
+                if !isolated && event.is_null() { current.error = Some("无法接收重复启动呼出通知。".into()); }
             }
             let _ = ready_tx.send(GetCurrentThreadId());
             'messages: loop {
@@ -111,6 +114,11 @@ impl Controller {
     pub fn status(&self) -> Status { self.status.lock().unwrap().clone() }
 
     pub fn set_enabled(&self, enabled: bool) -> Status {
+        if crate::store::is_isolated() {
+            let mut result = self.status();
+            result.error = Some("隔离运行中不注册系统快捷键。".into());
+            return result;
+        }
         let _serial = self.serial.lock().unwrap();
         if let Err(error) = crate::store::merge_settings(&serde_json::json!({"desktop":{"hotkeyEnabled":enabled}})) {
             let mut result = self.status();

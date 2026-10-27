@@ -57,7 +57,7 @@ fn range_rejects_noncanonical_impossible_reversed_and_overlong_dates() {
     assert!(f.db.range_items("2024-03-01", "2024-02-29").is_err());
     assert!(f.db.range_items("2024-01-01", "2024-04-03").is_err()); // 94 inclusive days
     // Validation happens before opening/scanning the source database.
-    let db = CalendarDb { path: f.path.with_extension("absent"), test_live: false };
+    let db = CalendarDb { path: f.path.with_extension("absent"), owned_root: None, shadow_path: None, test_live: false };
     assert!(db.range_items("bad", "2024-03-01").unwrap_err().contains("YYYY-MM-DD"));
 }
 

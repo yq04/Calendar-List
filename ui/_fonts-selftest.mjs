@@ -75,4 +75,22 @@ await test("Shell bridge uses restricted ID IPC calls", async () => {
   await bridge.localFontsList(); await bridge.localFontRead(fontA.id);
   assert.deepEqual(calls.slice(1), [["local_fonts_list", undefined], ["local_font_read", { id: fontA.id }]]);
 });
+await test("redundant sync with identical loaded fonts skips catalog re-querying", async () => {
+  const f = fixture();
+  const t = themeFor(fontA);
+  await f.manager.sync(t);
+  const callsBefore = f.calls.length;
+  // sync again with same font or non-font theme changes
+  await f.manager.sync(t);
+  assert.equal(f.calls.length, callsBefore, "No additional bridge calls when requested fonts are already loaded");
+  f.manager.destroy();
+});
+await test("destroy releases loaded faces, errors, and catalog state", async () => {
+  const f = fixture();
+  await f.manager.sync(themeFor(fontA));
+  assert.equal(f.faces.size, 1);
+  f.manager.destroy();
+  assert.equal(f.faces.size, 0);
+  assert.equal(f.manager.error, null);
+});
 console.log(`${passed}/${passed} private font tests passed`);

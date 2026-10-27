@@ -476,16 +476,21 @@ body.kal-panel-open .kal-panel {
 .kal-panel input[type="range"] {
   flex: 1 1 auto;
   min-width: 0;
-  height: calc(4 * var(--kal-u));
+  height: max(28px, calc(28 * var(--kal-u)));
   appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.kal-panel input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
   background: rgb(var(--kal-fg) / 0.16);
   border-radius: var(--kal-radius-pill);
-  outline: none;
 }
 .kal-panel input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   width: calc(12 * var(--kal-u));
   height: calc(12 * var(--kal-u));
+  margin-top: calc((4px - 12 * var(--kal-u)) / 2);
   border-radius: 50%;
   background: rgb(var(--kal-accent));
   cursor: pointer;
@@ -951,3 +956,34 @@ body.kal-reduced-motion *::after {
   gap: calc(2.5 * var(--kal-u));
   line-height: 1.4;
 }
+
+.kal-panel input.kal-range-number {
+  flex: 0 0 70px;
+  width: 70px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 4px;
+  color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface) / 0.65);
+  border: 1px solid rgb(var(--kal-line) / var(--kal-border-alpha));
+  border-radius: 6px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.kal-adv-group > summary {
+  cursor: pointer;
+  padding: 8px 0;
+  font-weight: 600;
+  color: rgb(var(--kal-fg));
+}
+.kal-adv-group > .kal-sec-head-row { margin: 4px 0; }
+body.kal-panel-peek .kal-panel-backdrop { display: none; }
+body.kal-panel-peek .kal-panel {
+  inset: 12px 12px auto auto;
+  margin: 0;
+  width: auto;
+  height: auto;
+}
+body.kal-panel-peek .kal-panel-main,
+body.kal-panel-peek .kal-panel-head > button:not([data-act="peek"]) { display: none; }

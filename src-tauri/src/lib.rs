@@ -147,6 +147,12 @@ async fn item_move(id: String, from_date: String, to_date: String, expected: Opt
 }
 
 #[tauri::command]
+async fn item_history_apply(history_token: String, direction: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || editing::history_apply(history_token, direction))
+        .await.map_err(|_| "历史操作任务未能完成".to_string())?
+}
+
+#[tauri::command]
 async fn calendar_import_items(items: Vec<editing::ImportEntry>) -> Result<serde_json::Value, String> {
     edit_worker(move || editing::import_items(items)).await
 }
@@ -354,6 +360,9 @@ fn current_exe_quoted() -> (String, String) {
 #[tauri::command]
 fn autostart_status() -> AutostartStatus {
     let (raw_exe, _) = current_exe_quoted();
+    if store::is_isolated() {
+        return AutostartStatus { enabled: false, exe_path: raw_exe, error: Some("隔离运行中不访问开机自启设置。".into()) };
+    }
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
     let enabled = match hkcu.open_subkey(AUTOSTART_REG_PATH) {
         Ok(key) => key
@@ -372,6 +381,9 @@ fn autostart_status() -> AutostartStatus {
 #[tauri::command]
 fn autostart_set(enabled: bool) -> AutostartStatus {
     let (raw_exe, quoted_exe) = current_exe_quoted();
+    if store::is_isolated() {
+        return AutostartStatus { enabled: false, exe_path: raw_exe, error: Some("隔离运行中不修改开机自启设置。".into()) };
+    }
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
     match hkcu.create_subkey(AUTOSTART_REG_PATH) {
         Ok((key, _)) => {
@@ -815,19 +827,17 @@ async fn calendar_import_db(path: String) -> Result<serde_json::Value, String> {
         if meta.len() > 64 * 1024 * 1024 {
             return Err("数据库文件过大（超过 64 MB）".into());
         }
-        let target_db = db::open_default()?;
-        let (imported, skipped) = target_db.sandbox_import_external_db(&pb)?;
+        let report = editing::import_external_db(&pb)?;
         let _ = store::append_log_line(&format!(
             "[import_db] path={} imported={} skipped={}",
             pb.display(),
-            imported,
-            skipped
+            report.imported,
+            report.skipped
         ));
-        Ok(serde_json::json!({
-            "imported": imported,
-            "skipped": skipped,
-            "path": pb.display().to_string(),
-        }))
+        let mut result = serde_json::to_value(report).map_err(|e| e.to_string())?;
+        result["status"] = serde_json::json!("saved");
+        result["path"] = serde_json::json!(pb.display().to_string());
+        Ok(result)
     })
     .await
     .map_err(|_| "导入数据库任务未能完成".to_string())?
@@ -1166,7 +1176,11 @@ fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 
 pub fn run() {
     let _ = store::ensure_dirs();
-    if store::is_portable_install_dir() && std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").is_none() {
+    if store::is_isolated() {
+        let wv2_dir = store::app_dir().join(format!("webview2-isolated-{}", std::process::id()));
+        std::fs::create_dir_all(&wv2_dir).expect("无法创建隔离 WebView2 数据目录");
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &wv2_dir);
+    } else if store::is_portable_install_dir() && std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").is_none() {
         let wv2_dir = store::app_dir().join("webview2");
         let _ = std::fs::create_dir_all(&wv2_dir);
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &wv2_dir);
@@ -1211,6 +1225,7 @@ pub fn run() {
             item_delete,
             item_confirm,
             item_move,
+            item_history_apply,
             calendar_import_items,
             calendar_read_text_file,
             calendar_import_db,
@@ -1405,4 +1420,17 @@ pub fn theme_save_cli(name: Option<String>, mode: Option<String>) -> i32 {
 /// 命令行自检：`kal --selftest`
 pub fn selftest_cli() -> i32 {
     selftest::run()
+}
+
+#[cfg(test)]
+mod isolation_runtime_tests {
+    #[test]
+    fn isolated_autostart_does_not_access_registry() {
+        if !crate::store::is_isolated() { return; }
+        assert!(crate::single_instance::is_isolated());
+        for status in [super::autostart_status(), super::autostart_set(true), super::autostart_set(false)] {
+            assert!(!status.enabled);
+            assert!(status.error.is_some());
+        }
+    }
 }

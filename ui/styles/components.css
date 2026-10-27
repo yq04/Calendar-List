@@ -416,17 +416,6 @@ body.kal-view-week .kal-cell.is-current-week .kal-task {
   background: rgb(var(--kal-surface-hover) / 0.06);
   line-height: 1.35;
 }
-body.kal-view-week.kal-task-clamp2 .kal-cell.is-current-week .kal-task {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-body.kal-view-week.kal-task-nowrap .kal-cell.is-current-week .kal-task {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 body.kal-view-week .kal-cell.is-current-week .kal-task::before {
   display: inline-block;
   margin-right: calc(4 * var(--kal-u));
@@ -550,14 +539,19 @@ body.kal-no-lunar .kal-sub { display: none; }
   gap: calc(1.5 * var(--kal-u));
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--kal-fg-muted) / 0.45) transparent;
   min-height: 0;
 }
 .kal-tasks::-webkit-scrollbar {
-  display: none;
+  width: 4px;
 }
-/* 默认自动多行换行模式：所有事项均允许完整自然多行折行，不限制行数、不加省略号截断 */
-body:not(.kal-task-nowrap):not(.kal-task-clamp2) .kal-task {
+.kal-tasks::-webkit-scrollbar-thumb {
+  background: rgb(var(--kal-fg-muted) / 0.45);
+  border-radius: 4px;
+}
+/* 旧主题中的截断模式也按完整换行显示，超出格子时由事项区域滚动。 */
+.kal-task {
   display: block;
   -webkit-line-clamp: unset;
   overflow: visible;
@@ -614,19 +608,6 @@ body:not(.kal-view-week):not(.kal-task-nowrap):not(.kal-task-clamp2) .kal-cell.i
 body.kal-bullet-none .kal-task {
   padding-left: 0;
   text-indent: 0;
-}
-body.kal-task-clamp2 .kal-task {
-  display: -webkit-box !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
-  overflow: hidden !important;
-  white-space: pre-wrap !important;
-}
-body.kal-task-nowrap .kal-task {
-  display: block !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
 }
 .kal-task::before {
   content: "";

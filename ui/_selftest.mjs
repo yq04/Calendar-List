@@ -134,13 +134,13 @@ ok("token 变量名唯一", new Set(vars).size === vars.length,
 console.log("[编辑桥 Mock]");
 const mock = createMockSource();
 const mockDate = toKey(new Date());
-const created = await mock.itemCreate(mockDate, "自检任务", "");
+const created = (await mock.itemCreate(mockDate, "自检任务", "")).after;
 ok("Mock 新增任务", (await mock.dayEvents(mockDate)).some(e => e.id === created.id && e.title === "自检任务"));
-await mock.itemToggleDone(created.id, mockDate, true);
+const toggled = (await mock.itemToggleDone(created.id, mockDate, true, buildExpectedSnapshot(created))).after;
 ok("Mock 切换完成态", (await mock.dayEvents(mockDate)).find(e => e.id === created.id)?.done === true);
-await mock.itemUpdate(created.id, mockDate, "修改后的任务");
+const updated = (await mock.itemUpdate(created.id, mockDate, "修改后的任务", buildExpectedSnapshot(toggled))).after;
 ok("Mock 编辑标题", (await mock.dayEvents(mockDate)).find(e => e.id === created.id)?.title === "修改后的任务");
-await mock.itemDelete(created.id, mockDate);
+await mock.itemDelete(created.id, mockDate, buildExpectedSnapshot(updated));
 ok("Mock 删除任务", !(await mock.dayEvents(mockDate)).some(e => e.id === created.id));
 
 console.log("[Mock 校验与快照核对]");
@@ -148,11 +148,11 @@ ok("Mock 拒绝空标题", await throwsAsync(() => mock.itemCreate(mockDate, "  
 ok("Mock 拒绝多行标题", await throwsAsync(() => mock.itemCreate(mockDate, "第一行\n第二行", "")));
 ok("Mock 拒绝非法日期", await throwsAsync(() => mock.itemCreate("2026-02-30", "任务", "")));
 ok("Mock 拒绝非法时间", await throwsAsync(() => mock.itemCreate(mockDate, "任务", "25:99")));
-const evCreated = await mock.itemCreate(mockDate, "带时间日程", "09:30");
+const evCreated = (await mock.itemCreate(mockDate, "带时间日程", "09:30")).after;
 ok("带时间日程默认 canComplete=false", evCreated.canComplete === false);
 ok("带时间日程禁止切换完成态", await throwsAsync(() => mock.itemToggleDone(evCreated.id, mockDate, true)));
 
-const taskForSnap = await mock.itemCreate(mockDate, "快照测试任务", "");
+const taskForSnap = (await mock.itemCreate(mockDate, "快照测试任务", "")).after;
 const staleSnap = buildExpectedSnapshot(taskForSnap);
 ok("buildExpectedSnapshot 完整保留 calendarId/remoteId/revision",
   staleSnap.calendarId === "mock-cal" && staleSnap.remoteId === taskForSnap.id && Boolean(staleSnap.revision));
@@ -344,10 +344,12 @@ ok("CONTENT_PRESETS 包含 4 套日历内容与换行方案", Array.isArray(CONT
 const presetClamp2 = applyContentPreset(DEFAULT_THEME, "clamp-2");
 const presetSingle = applyContentPreset(DEFAULT_THEME, "compact-single");
 const presetStandard = applyContentPreset(presetSingle, "standard-wrap");
-ok("applyContentPreset 正确切换自动换行 / 两行精简 / 单行高密",
-  presetClamp2.layout.taskWrap === "clamp2" &&
-  presetSingle.layout.taskWrap === "nowrap" &&
-  presetStandard.layout.taskWrap === "wrap");
+ok("applyContentPreset 保持完整换行并切换密度与编号",
+  presetClamp2.layout.taskWrap === "wrap" && presetClamp2.layout.maxTasks === 5 &&
+  presetSingle.layout.taskWrap === "wrap" && presetSingle.layout.maxTasks === 6 &&
+  presetSingle.layout.bulletStyle === "number" &&
+  presetStandard.layout.taskWrap === "wrap" && presetStandard.layout.maxTasks === 4 &&
+  presetStandard.layout.bulletStyle === "dot");
 
 const exportDayMap = new Map([
   ["2026-10-01", [
@@ -437,7 +439,7 @@ ok("RFC 5545 (.ics) 导入解析器往返还原",
 
 const moveSourceDate = "2026-10-15";
 const moveTargetDate = "2026-10-16";
-const movable = await mock.itemCreate(moveSourceDate, "可跨天移动的任务", "10:00");
+const movable = (await mock.itemCreate(moveSourceDate, "可跨天移动的任务", "10:00")).after;
 const moveRes = await mock.itemMove(movable.id, moveSourceDate, moveTargetDate, buildExpectedSnapshot(movable));
 ok("Mock itemMove 跨天移动成功",
   moveRes.status === "saved" &&

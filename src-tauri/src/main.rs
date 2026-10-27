@@ -35,14 +35,14 @@ fn main() {
     }
 
     #[cfg(windows)]
-    let _instance = match kal_shell::single_instance::acquire() {
-        Ok(Some(instance)) => instance,
+    let _instance = if kal_shell::single_instance::is_isolated() { None } else { match kal_shell::single_instance::acquire() {
+        Ok(Some(instance)) => Some(instance),
         Ok(None) => {
             eprintln!("已通知正在运行的 Kal 呼出窗口。");
             return;
         }
         Err(error) => { eprintln!("{error}"); return; }
-    };
+    }};
 
     kal_shell::run();
 }

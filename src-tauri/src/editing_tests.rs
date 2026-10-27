@@ -554,7 +554,7 @@ fn sandbox_standalone_crud_move_and_notes_work_without_mcp() {
     conn.execute("INSERT INTO item_table (it_unique_id, it_content, it_appinfo, u_id, group_id) VALUES ('20261026', '<!--IxMarkdown-->早会纪要', '{}', 0, '')", []).unwrap();
     drop(conn);
 
-    let db = db::CalendarDb::open(sb_path.clone()).unwrap();
+    let db = db::CalendarDb::synthetic_owned(sb_path.clone()).unwrap();
     assert!(db.is_sandbox());
     assert!(db.is_live_source());
 

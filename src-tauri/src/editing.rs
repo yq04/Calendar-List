@@ -12,13 +12,62 @@ use std::{
 static WRITE_LOCK: Mutex<()> = Mutex::new(());
 static PENDING: Mutex<Option<Pending>> = Mutex::new(None);
 static NEXT_PENDING: AtomicU64 = AtomicU64::new(1);
+static HISTORY: Mutex<std::collections::VecDeque<HistoryRecord>> = Mutex::new(std::collections::VecDeque::new());
+
+struct HistoryRecord {
+    token: String,
+    before_state: db::SandboxHistoryState,
+    after_state: db::SandboxHistoryState,
+    before: Option<DayItem>,
+    after: Option<DayItem>,
+    undone: bool,
+}
+
+fn saved_with_history(db: &db::CalendarDb, dates: &[String], before_state: db::SandboxHistoryState,
+    before: Option<DayItem>, after: Option<DayItem>) -> Result<Value, String> {
+    let after_state = db.history_state(dates)?;
+    let token = crate::store::unique_suffix();
+    let response = json!({"status":"saved", "before":before, "after":after, "historyToken":token});
+    let mut history = HISTORY.lock().map_err(|_| "历史状态不可用")?;
+    history.push_back(HistoryRecord { token, before_state, after_state, before, after, undone: false });
+    while history.len() > 100 { history.pop_front(); }
+    Ok(response)
+}
+
+pub fn history_apply(history_token: String, direction: String) -> Result<Value, String> {
+    let db = source()?;
+    history_apply_internal(&db, &history_token, &direction)
+}
+
+pub(crate) fn history_apply_internal(db: &db::CalendarDb, token: &str, direction: &str) -> Result<Value, String> {
+    let _guard = WRITE_LOCK.try_lock().map_err(|_| "正在保存，请稍候")?;
+    let undo = match direction { "undo" => true, "redo" => false, _ => return Err("历史方向必须是 undo 或 redo".into()) };
+    let mut history = HISTORY.lock().map_err(|_| "历史状态不可用")?;
+    let record = history.iter_mut().find(|r| r.token == token).ok_or("历史记录已失效")?;
+    if record.undone == undo { return Err("历史记录已执行该方向".into()); }
+    let (expected, desired) = if undo { (&record.after_state, &record.before_state) } else { (&record.before_state, &record.after_state) };
+    db.apply_history_state(expected, desired)?;
+    record.undone = undo;
+    Ok(json!({"status":"saved", "historyToken":token,
+        "before":if undo { &record.after } else { &record.before },
+        "after":if undo { &record.before } else { &record.after }}))
+}
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ImportEntry {
     pub date: String,
     #[serde(default)]
     pub time: String,
     pub title: String,
+    #[serde(default)]
+    pub done: bool,
+    #[serde(default)]
+    pub uid: String,
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub kind: String,
 }
 
 struct Pending {
@@ -99,6 +148,12 @@ fn title(value: &str) -> Result<&str, String> {
         return Err("内容过长".into());
     }
     Ok(value)
+}
+
+pub(crate) fn validate_import_text(value: &str, time: &str) -> Result<(), String> {
+    title(value)?;
+    validate_time_opt(time)?;
+    Ok(())
 }
 
 fn source() -> Result<db::CalendarDb, String> {
@@ -295,8 +350,11 @@ pub fn create_internal(
         validate_date(&date)?;
         let clean_title = title(&value)?;
         let clean_time = validate_time_opt(&time)?;
-        db.sandbox_create(&date, clean_title, clean_time)?;
-        return Ok(json!({"status":"saved"}));
+        let dates = vec![date.clone()];
+        let before_state = db.history_state(&dates)?;
+        let new_id = db.sandbox_create(&date, clean_title, clean_time)?;
+        let after = db.day_items(&date)?.into_iter().find(|item| item.id == new_id);
+        return saved_with_history(db, &dates, before_state, None, after);
     }
     if pipe == mcp::PIPE && !db.is_live_source() {
         return Err("当前为外部或测试数据，只能查看".into());
@@ -338,8 +396,11 @@ pub fn update_internal(
         if !item.can_edit {
             return Err("此安排暂不支持编辑".into());
         }
+        let dates = vec![date.clone()];
+        let before_state = db.history_state(&dates)?;
         db.sandbox_update(&id, &date, clean_title)?;
-        return Ok(json!({"status":"saved"}));
+        let after = db.day_items(&date)?.into_iter().find(|item| item.id == id);
+        return saved_with_history(db, &dates, before_state, Some(item), after);
     }
     if pipe == mcp::PIPE && !db.is_live_source() {
         return Err("当前为外部或测试数据，只能查看".into());
@@ -398,8 +459,11 @@ pub fn toggle_internal(
         if !item.can_complete {
             return Err("此安排暂不支持完成状态".into());
         }
+        let dates = vec![date.clone()];
+        let before_state = db.history_state(&dates)?;
         db.sandbox_toggle(&id, &date, done)?;
-        return Ok(json!({"status":"saved"}));
+        let after = db.day_items(&date)?.into_iter().find(|item| item.id == id);
+        return saved_with_history(db, &dates, before_state, Some(item), after);
     }
     if pipe == mcp::PIPE && !db.is_live_source() {
         return Err("当前为外部或测试数据，只能查看".into());
@@ -447,8 +511,10 @@ pub fn delete_internal(
         if !item.can_delete {
             return Err("此安排暂不支持删除".into());
         }
+        let dates = vec![date.clone()];
+        let before_state = db.history_state(&dates)?;
         db.sandbox_delete(&id, &date)?;
-        return Ok(json!({"status":"saved"}));
+        return saved_with_history(db, &dates, before_state, Some(item), None);
     }
     if pipe == mcp::PIPE && !db.is_live_source() {
         return Err("当前为外部或测试数据，只能查看".into());
@@ -497,14 +563,15 @@ pub fn move_item_internal(
     let _guard = WRITE_LOCK.try_lock().map_err(|_| "正在保存，请稍候")?;
     validate_date(&from_date)?;
     validate_date(&to_date)?;
-    if let Some(exp) = expected.as_ref() {
-        snapshot(db, &id, &from_date, Some(exp))?;
-    }
+    let item = snapshot(db, &id, &from_date, expected.as_ref())?;
     if !db.is_sandbox() {
         return Err("跨日移动日程仅在本地沙盒可写模式下支持".into());
     }
-    db.sandbox_move_item(&id, &from_date, &to_date)?;
-    Ok(json!({"status":"saved"}))
+    let dates = if from_date == to_date { vec![from_date.clone()] } else { vec![from_date.clone(), to_date.clone()] };
+    let before_state = db.history_state(&dates)?;
+    let target_id = db.sandbox_move_item(&id, &from_date, &to_date)?;
+    let after = db.day_items(&to_date)?.into_iter().find(|item| item.id == target_id);
+    saved_with_history(db, &dates, before_state, Some(item), after)
 }
 
 pub fn move_item(
@@ -519,6 +586,10 @@ pub fn move_item(
 
 pub fn import_items(items: Vec<ImportEntry>) -> Result<Value, String> {
     let db = source()?;
+    import_items_internal(&db, items)
+}
+
+pub(crate) fn import_items_internal(db: &db::CalendarDb, items: Vec<ImportEntry>) -> Result<Value, String> {
     if !db.is_sandbox() {
         return Err("导入日历仅在本地沙盒可写模式下支持".into());
     }
@@ -529,19 +600,39 @@ pub fn import_items(items: Vec<ImportEntry>) -> Result<Value, String> {
     if items.len() > 1000 {
         return Err("单次最多导入 1000 条日程".into());
     }
-    let mut imported = 0usize;
-    for entry in items {
-        if validate_date(&entry.date).is_err() {
-            continue;
-        }
-        let Ok(clean_title) = title(&entry.title) else {
-            continue;
-        };
-        let clean_time = validate_time_opt(&entry.time).unwrap_or("");
-        db.sandbox_create(&entry.date, clean_title, clean_time)?;
-        imported += 1;
+    let mut records = Vec::with_capacity(items.len());
+    let mut occurrences = std::collections::HashMap::<String,usize>::new();
+    let mut missing_identity = false;
+    for (index, entry) in items.into_iter().enumerate() {
+        let prefix = format!("第 {} 条导入项", index + 1);
+        validate_date(&entry.date).map_err(|e| format!("{prefix}: {e}；整批未写入"))?;
+        let clean_title = title(&entry.title).map_err(|e| format!("{prefix}: {e}；整批未写入"))?;
+        let clean_time = validate_time_opt(&entry.time).map_err(|e| format!("{prefix}: {e}；整批未写入"))?;
+        if entry.uid.len() > 4096 || entry.source.len() > 4096 { return Err(format!("{prefix}: 来源身份过长；整批未写入")); }
+        if !matches!(entry.kind.as_str(), "" | "item" | "event") { return Err(format!("{prefix}: 不支持该事项类型；整批未写入")); }
+        if entry.kind == "item" && !clean_time.is_empty() { return Err(format!("{prefix}: 普通事项不应包含时间；整批未写入")); }
+        let namespace = if entry.source.is_empty() { "ics" } else { &entry.source };
+        let identity = if entry.uid.is_empty() {
+            missing_identity = true;
+            let content = serde_json::to_string(&(namespace, &entry.kind, &entry.date, clean_time, clean_title, entry.done)).map_err(|e| e.to_string())?;
+            let number = occurrences.entry(content.clone()).or_default();
+            *number += 1;
+            format!("content:{content}:{}", *number)
+        } else { format!("uid:{}", serde_json::to_string(&(namespace, &entry.uid)).map_err(|e| e.to_string())?) };
+        records.push(db::ImportRecord { identity, date: entry.date, time: clean_time.to_string(),
+            title: clean_title.to_string(), done: entry.done, note: None, event: entry.kind == "event" || !clean_time.is_empty(), event_start: None });
     }
-    Ok(json!({"status": "saved", "imported": imported}))
+    let mut report = db.import_records("calendar-items", records)?;
+    if missing_identity { report.warnings.push("部分日程没有 UID：按内容及本批相同内容的出现次数识别；内容或批次组成改变后无法保证来源身份。".into()); }
+    let mut result = serde_json::to_value(report).map_err(|e| e.to_string())?;
+    result["status"] = json!("saved");
+    Ok(result)
+}
+
+pub fn import_external_db(path: &std::path::Path) -> Result<db::ImportReport, String> {
+    let db = source()?;
+    let _guard = WRITE_LOCK.try_lock().map_err(|_| "正在保存，请稍候")?;
+    db.sandbox_import_external_db(path)
 }
 
 pub fn note_save(

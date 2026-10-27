@@ -23,6 +23,7 @@ export function createLocalFonts({ bridge, getTheme, onError = () => {}, doc = d
   let disposed = false;
   let lastError = null;
   const loaded = new Map();
+  const pendingFontReads = new Map();
 
   function clearFaces() {
     for (const { face } of loaded.values()) doc.fonts?.delete(face);
@@ -41,10 +42,30 @@ export function createLocalFonts({ bridge, getTheme, onError = () => {}, doc = d
     return pendingCatalog;
   }
 
+  async function readFont(id) {
+    if (pendingFontReads.has(id)) return pendingFontReads.get(id);
+    const req = (async () => {
+      try {
+        return await bridge.localFontRead(id);
+      } finally {
+        pendingFontReads.delete(id);
+      }
+    })();
+    pendingFontReads.set(id, req);
+    return req;
+  }
+
   async function loadSelected(theme, version) {
     const ids = selectedLocalIds(theme);
     // System-only themes need no catalog or font reads.
-    if (!ids.length) { clearFaces(); return; }
+    if (!ids.length) {
+      if (loaded.size > 0) clearFaces();
+      return;
+    }
+    // If all selected fonts are already loaded and active, and no error exists, skip redundant work
+    if (loaded.size === ids.length && ids.every(id => loaded.has(id)) && lastError === null) {
+      return;
+    }
     const data = await list();
     if (version !== generation || disposed) return;
     const fonts = ids.map(id => {
@@ -60,7 +81,7 @@ export function createLocalFonts({ bridge, getTheme, onError = () => {}, doc = d
     for (const font of fonts) {
       if (loaded.has(font.id)) continue;
       if (!FontFaceClass || !doc.fonts) throw new Error("当前环境不支持加载私有字体");
-      const payload = await bridge.localFontRead(font.id);
+      const payload = await readFont(font.id);
       if (version !== generation || disposed) return;
       if (payload?.id !== font.id || !Array.isArray(payload.bytes) || !payload.bytes.length || payload.bytes.length > MAX_FILE_BYTES || payload.bytes.some(b => !Number.isInteger(b) || b < 0 || b > 255)) {
         throw new Error("字体读取结果无效或超过大小限制");
@@ -68,6 +89,7 @@ export function createLocalFonts({ bridge, getTheme, onError = () => {}, doc = d
       const resident = [...loaded.values()].reduce((n, f) => n + f.bytes, 0);
       if (resident + payload.bytes.length > MAX_LOADED_BYTES) throw new Error("所选字体总大小超过 32 MiB 限制");
       const buffer = Uint8Array.from(payload.bytes).buffer;
+      payload.bytes = null;
       // No data URLs/base64 or catalog-wide buffers. WebView releases temporary IPC data.
       const face = new FontFaceClass(font.family, buffer, { weight: "100 900", stretch: "50% 200%", display: "swap" });
       try { await face.load(); }
@@ -109,6 +131,15 @@ export function createLocalFonts({ bridge, getTheme, onError = () => {}, doc = d
       await sync(getTheme() || latestTheme);
       return result;
     },
-    destroy() { disposed = true; ++generation; unsubscribe(); clearFaces(); },
+    destroy() {
+      disposed = true;
+      ++generation;
+      unsubscribe();
+      clearFaces();
+      catalog = null;
+      pendingCatalog = null;
+      pendingFontReads.clear();
+      lastError = null;
+    },
   };
 }

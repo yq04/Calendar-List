@@ -356,45 +356,106 @@ export function parseTaskDecorations(rawTitle) {
  * 解析 RFC 5545 标准 iCalendar (.ics) 文本为日程项数组
  */
 export function parseIcsCalendar(icsText) {
-  if (typeof icsText !== "string" || !icsText.trim()) return [];
-  // RFC 5545 折行展开 (CRLF/LF + Space/Tab)
-  const unfolded = icsText.replace(/\r?\n[ \t]/g, "");
-  const lines = unfolded.split(/\r?\n/);
-  const items = [];
-  let inEvent = false;
-  let cur = null;
+  return parseIcsCalendarDetailed(icsText).items;
+}
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    if (line.toUpperCase() === "BEGIN:VEVENT") {
-      inEvent = true;
-      cur = { dtstart: "", dtend: "", summary: "", categories: "" };
-      continue;
-    }
-    if (line.toUpperCase() === "END:VEVENT") {
-      if (inEvent && cur && cur.dtstart && cur.summary) {
-        const parsed = normalizeIcsEvent(cur);
-        if (parsed) items.push(parsed);
-      }
-      inEvent = false;
-      cur = null;
-      continue;
-    }
-    if (!inEvent || !cur) continue;
-
-    const colonIdx = line.indexOf(":");
-    if (colonIdx <= 0) continue;
-    const propPart = line.slice(0, colonIdx).toUpperCase();
-    const valPart = line.slice(colonIdx + 1).trim();
-    const propName = propPart.split(";")[0];
-
-    if (propName === "DTSTART") cur.dtstart = valPart;
-    else if (propName === "DTEND") cur.dtend = valPart;
-    else if (propName === "SUMMARY") cur.summary = unescapeIcsText(valPart);
-    else if (propName === "CATEGORIES") cur.categories = unescapeIcsText(valPart);
+// Only import events representable by the current date/time/title data model.
+export function parseIcsCalendarDetailed(icsText) {
+  const result = { items: [], skipped: [], warnings: [], errors: [] };
+  if (typeof icsText !== "string" || !icsText.trim()) {
+    result.errors.push("文件为空");
+    return result;
   }
-  return items;
+  const lines = icsText.replace(/\r?\n[ \t]/g, "").split(/\r?\n/);
+  const events = [];
+  const stack = [];
+  let event = null;
+  let calendars = 0;
+  for (const line of lines) {
+    if (!line) continue;
+    const boundary = /^(BEGIN|END):([A-Z0-9-]+)$/i.exec(line);
+    if (boundary) {
+      const action = boundary[1].toUpperCase(), component = boundary[2].toUpperCase();
+      if (action === "BEGIN") {
+        if (component === "VCALENDAR") { calendars++; if (stack.length) result.errors.push("VCALENDAR 嵌套无效"); }
+        else if (!stack.length) result.errors.push("组件位于 VCALENDAR 之外");
+        if (component === "VEVENT") {
+          if (event || stack[stack.length - 1] !== "VCALENDAR") result.errors.push("VEVENT 结构无效");
+          event = { properties: {}, reasons: [] };
+          events.push(event);
+        } else if (event) event.reasons.push(`不支持子组件 ${component}`);
+        else if (component === "VTODO" || component === "VJOURNAL" || component === "VFREEBUSY") {
+          result.skipped.push({ index: null, title: "", reason: `不支持 ${component}` });
+        }
+        stack.push(component);
+      } else {
+        if (stack.pop() !== component) result.errors.push("组件结束标记不匹配");
+        if (component === "VEVENT") event = null;
+      }
+      continue;
+    }
+    if (!event && stack[stack.length - 1] === "VCALENDAR" && /^METHOD:/i.test(line) && !/^METHOD:PUBLISH$/i.test(line)) {
+      result.errors.push("不支持此日历调度方法");
+    }
+    if (!event || stack[stack.length - 1] !== "VEVENT") continue;
+    const match = /^([^:]+):(.*)$/.exec(line);
+    if (!match) { event.reasons.push("属性格式无效"); continue; }
+    const [name, ...params] = match[1].split(";");
+    const key = name.toUpperCase();
+    (event.properties[key] ||= []).push({ params: params.map(p => p.toUpperCase()), value: match[2] });
+  }
+  if (stack.length || calendars !== 1) result.errors.push("VCALENDAR 结构不完整或无效");
+  if (result.errors.length) return result;
+
+  const uidCounts = new Map();
+  for (const ev of events) {
+    const uid = ev.properties.UID?.[0]?.value;
+    if (uid) uidCounts.set(uid, (uidCounts.get(uid) || 0) + 1);
+  }
+  events.forEach((ev, index) => {
+    const p = ev.properties;
+    const title = unescapeIcsText(p.SUMMARY?.[0]?.value);
+    for (const key of ["DTSTART", "DTEND", "SUMMARY", "UID"]) {
+      if (p[key]?.length > 1) ev.reasons.push(`${key} 重复`);
+    }
+    for (const key of ["RRULE", "RDATE", "EXRULE", "EXDATE", "RECURRENCE-ID", "DURATION"]) {
+      if (p[key]) ev.reasons.push(`不支持 ${key}`);
+    }
+    if (p.STATUS?.some(v => v.value.toUpperCase() === "CANCELLED")) ev.reasons.push("已取消的事件");
+    if (p.UID?.[0]?.value && uidCounts.get(p.UID[0].value) > 1) ev.reasons.push("文件中 UID 重复");
+    if (!title) ev.reasons.push("缺少标题");
+    const start = parseIcsDate(p.DTSTART?.[0]);
+    if (!start) ev.reasons.push("开始日期无效或使用不支持的时区、精度或参数");
+    if (p.DTEND) {
+      const end = parseIcsDate(p.DTEND[0]);
+      if (!end || !start || start.time || end.time || end.date !== addDaysToKey(start.date, 1)) {
+        ev.reasons.push("不支持此结束时间或跨日事件");
+      }
+    }
+    if (ev.reasons.length) {
+      result.skipped.push({ index: index + 1, title, reason: [...new Set(ev.reasons)].join("；") });
+      return;
+    }
+    if (!p.UID?.[0]?.value) result.warnings.push(`第 ${index + 1} 项没有 UID，将使用内容进行去重`);
+    const ignored = Object.keys(p).filter(key => !["DTSTART", "DTEND", "SUMMARY", "UID", "DTSTAMP", "CREATED", "LAST-MODIFIED", "SEQUENCE"].includes(key));
+    if (ignored.length) result.warnings.push(`第 ${index + 1} 项的属性不会导入：${ignored.join("、")}`);
+    const item = { date: start.date, time: start.time, title, kind: "event" };
+    if (p.UID?.[0]?.value) item.uid = p.UID[0].value;
+    result.items.push(item);
+  });
+  return result;
+}
+
+function parseIcsDate(prop) {
+  if (!prop) return null;
+  const value = prop.value;
+  const dateOnly = /^\d{8}$/.test(value);
+  if (prop.params.some(p => p !== (dateOnly ? "VALUE=DATE" : "VALUE=DATE-TIME"))) return null;
+  const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})00)?$/.exec(value);
+  if (!match || (!dateOnly && !match[4])) return null;
+  const date = `${match[1]}-${match[2]}-${match[3]}`;
+  if (!isValidDateKey(date) || (match[4] && (Number(match[4]) > 23 || Number(match[5]) > 59))) return null;
+  return { date, time: match[4] ? `${match[4]}:${match[5]}` : "" };
 }
 
 function unescapeIcsText(s) {
@@ -405,29 +466,4 @@ function unescapeIcsText(s) {
     .replace(/\\\\/g, "\\")
     .replace(/[\r\n]+/g, " ")
     .trim();
-}
-
-function normalizeIcsEvent(ev) {
-  const digits = ev.dtstart.replace(/\D/g, "");
-  if (digits.length < 8) return null;
-  const date = `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
-  if (!isValidDateKey(date)) return null;
-
-  let time = "";
-  if (ev.dtstart.includes("T") && digits.length >= 12) {
-    const hh = Number(digits.slice(8, 10));
-    const mm = Number(digits.slice(10, 12));
-    if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
-      time = `${pad(hh)}:${pad(mm)}`;
-    }
-  }
-
-  let title = ev.summary;
-  if (ev.categories) {
-    const firstCat = ev.categories.split(",")[0].trim();
-    if (firstCat && !title.includes(`#${firstCat}`)) {
-      title = `${title} #${firstCat}`;
-    }
-  }
-  return { date, time, title };
 }
