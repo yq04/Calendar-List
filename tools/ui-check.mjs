@@ -11,6 +11,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { APP_VERSION } from "../ui/src/theme.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2174,14 +2175,14 @@ async function run() {
     }
 
     // =========================================================================
-    // P8：左侧日历双击直接内联编辑 + 右侧列表直编 + v0.1.2 版本号与检查更新
+    // P8：直接编辑 + 当前版本标识与本机版本信息
     // =========================================================================
     try {
       const p8Res = await cdp.evaluate(`(async () => {
         window.__KAL_TEST__.setRequireConfirm(false);
         window.__KAL_TEST__.clearCalls();
 
-        // 1. Verify v0.1.2 version badge in header and settings
+        // 1. Verify the current version badge in header and settings
         const headerVer = document.getElementById("kal-app-version")?.textContent?.trim() || "";
         const panelVer = document.getElementById("kal-panel-version")?.textContent?.trim() || "";
 
@@ -2211,7 +2212,7 @@ async function run() {
         const leftSaved = createCalls.some(c => c.args?.date === "2026-10-15" && c.args?.title === "左格双击直接添加事项" && c.args?.time === "");
         const rightSaved = createCalls.some(c => c.args?.date === "2026-10-15" && c.args?.title === "右侧列表直接添加事项" && c.args?.time === "");
 
-        // 4. Open Settings & test Check for Updates (v0.1.2)
+        // 4. Local version information must not claim an online update check
         document.getElementById("kal-settings")?.click();
         const checkBtn = document.getElementById("kal-check-update-btn");
         const changelogBtn = document.getElementById("kal-changelog-btn");
@@ -2232,21 +2233,21 @@ async function run() {
           leftSaved,
           rightSaved,
           changelogOpened,
-          updateUpToDate: Boolean(lastCheck?.upToDate && updateStatus.includes("v0.1.2")),
+          localVersionAccurate: Boolean(lastCheck?.version === ${JSON.stringify(APP_VERSION)} && lastCheck?.checkedOnline === false && !lastCheck?.upToDate && updateStatus.includes(${JSON.stringify(`v${APP_VERSION}`)})),
         };
       })()`);
       const ok =
-        p8Res.headerVer === "v0.1.2" &&
-        p8Res.panelVer === "v0.1.2" &&
+        p8Res.headerVer === `v${APP_VERSION}` &&
+        p8Res.panelVer === `v${APP_VERSION}` &&
         p8Res.cellEditorOpened === true &&
         p8Res.rightEditorOpened === true &&
         p8Res.leftSaved === true &&
         p8Res.rightSaved === true &&
         p8Res.changelogOpened === true &&
-        p8Res.updateUpToDate === true;
-      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.2版本标识与检查更新", ok, JSON.stringify(p8Res));
+        p8Res.localVersionAccurate === true;
+      record("P8-direct-cell-edit-and-updater", "直接编辑与当前本机版本信息", ok, JSON.stringify(p8Res));
     } catch (err) {
-      record("P8-direct-cell-edit-and-updater", "左格双击直编+右侧列表直编+v0.1.2版本标识与检查更新", false, err.message);
+      record("P8-direct-cell-edit-and-updater", "直接编辑与当前本机版本信息", false, err.message);
     }
 
     // =========================================================================

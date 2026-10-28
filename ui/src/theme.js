@@ -333,8 +333,8 @@ export const DEFAULT_THEME = {
 };
 
 /** 当前软件发布版本号与阶段标识 */
-export const APP_VERSION = "0.1.2";
-export const APP_STAGE_LABEL = "v0.1.2";
+export const APP_VERSION = "0.1.3";
+export const APP_STAGE_LABEL = `v${APP_VERSION}`;
 
 /** 6 款内置零依赖高颜值艺术壁纸预设 */
 export const ART_BACKDROPS = [

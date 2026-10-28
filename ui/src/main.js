@@ -2015,6 +2015,7 @@ async function applyDesktopDock(patch = {}, notify = true) {
       "top-desktop": "屏幕上半区（竖屏）",
       "bottom-desktop": "屏幕下半区（竖屏）",
       "current": "当前位置",
+      "wallpaper-zone": "壁纸日历分区",
     };
     const posName = posLabels[state.dockConfig.position] || "屏幕左侧";
     setWriteStatus(
@@ -2970,6 +2971,10 @@ async function boot() {
   try {
     const info = await bridge.appInfo();
     state.info = info;
+    if (info?.version) {
+      el["kal-app-version"].textContent = `v${info.version}`;
+      el["kal-app-version"].title = `日历清单 v${info.version}`;
+    }
     if (info?.uiScale) setUiScale(info.uiScale);
     if (info?.display?.ppiKnown) {
       const d = info.display;
@@ -3002,6 +3007,7 @@ async function boot() {
   await productivity.refresh();
 
   panel = createPanel({
+    appVersion: state.info?.version,
     mount: document.getElementById("kal-root"),
     getTheme: () => state.draft,
     onPreview: previewDraft,

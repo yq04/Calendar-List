@@ -1,7 +1,7 @@
 // 数据桥：外壳内走 Tauri IPC，浏览器里回落 Mock
 // 这一层是前端唯一知道「自己在不在外壳里」的地方，其余模块都当它是纯数据源。
 
-import { DEFAULT_THEME } from "./theme.js";
+import { DEFAULT_THEME, APP_VERSION } from "./theme.js";
 import { createMockSource } from "./mock.js";
 
 function tauriInvoke() {
@@ -47,6 +47,9 @@ export async function createBridge(env = {}) {
       autostartSet: enabled => invoke("autostart_set", { enabled: Boolean(enabled) }),
       desktopDockStatus: () => invoke("desktop_dock_status"),
       desktopApplyDock: opts => invoke("desktop_apply_dock", { opts }),
+      desktopZonesStatus: () => invoke("desktop_zones_status"),
+      desktopZonesApply: (config, pngDataUrl) => invoke("desktop_zones_apply", { config, pngDataUrl }),
+      desktopZonesRestore: monitor => invoke("desktop_zones_restore", { monitor }),
       writeStatus: () => invoke("calendar_write_status"),
       itemCreate: (date, title, time = "") => invoke("item_create", { date, title, time }),
       itemUpdate: (id, date, title, expected = null) =>
@@ -160,7 +163,7 @@ export async function createBridge(env = {}) {
   const mock = createMockSource();
   mock.label = "演示数据";
   mock.bootError = null;
-  mock.appInfo = async () => ({ uiScale: 1, themeId: "default", display: null, dbFound: true });
+  mock.appInfo = async () => ({ version: APP_VERSION, uiScale: 1, themeId: "default", display: null, dbFound: true });
   mock.wallpaperInfo = async () => ({ path: "", source: "none", exists: false });
   mock.wallpaperReadImage = async (path = null) => ({
     path: path || "demo-wallpaper.svg",
@@ -327,6 +330,30 @@ export async function createBridge(env = {}) {
     return structuredClone(mockDock);
   };
   mock.windowSetClickThrough = async enabled => Boolean(enabled);
+  const mockZones = { configs: {}, activeMonitor: "", canRestore: {}, position: "fill", slideshow: false };
+  let mockBeforeZonesDock = null;
+  mock.desktopZonesStatus = async () => structuredClone({
+    ...mockZones,
+    monitors: mockDock.monitors.map(m => ({ ...m,
+      iconSpacing: m.iconSpacing || [Math.round(96 * m.dpiScale), Math.round(96 * m.dpiScale)],
+      wallpaperPath: "demo-wallpaper.svg", sourcePath: "demo-wallpaper.svg" })),
+  });
+  mock.desktopZonesApply = async config => {
+    if (mockDock.position !== "wallpaper-zone") mockBeforeZonesDock = structuredClone(mockDock);
+    mockZones.configs[config.monitor] = structuredClone(config);
+    mockZones.activeMonitor = config.monitor;
+    mockZones.canRestore[config.monitor] = true;
+    mockDock = { ...mockDock, docked: true, position: "wallpaper-zone", monitor: config.monitor };
+    return mock.desktopZonesStatus();
+  };
+  mock.desktopZonesRestore = async monitor => {
+    mockZones.canRestore[monitor] = false;
+    if (mockZones.activeMonitor === monitor) {
+      mockZones.activeMonitor = "";
+      if (mockBeforeZonesDock) mockDock = structuredClone(mockBeforeZonesDock);
+    }
+    return mock.desktopZonesStatus();
+  };
   mock.windowMinimize = async () => true;
   mock.windowHideToTray = async () => true;
   mock.pickImage = async () => null;

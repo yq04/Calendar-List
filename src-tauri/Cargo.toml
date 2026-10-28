@@ -1,6 +1,6 @@
 [package]
 name = "kal-shell"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "Kal 桌历 —— 嵌入式桌面日历清单"
 authors = ["YG"]
@@ -26,13 +26,16 @@ rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 winreg = "0.56"
 # 仅需解码壁纸位图，关掉默认特性可省掉一大票无关编解码器
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "bmp"] }
+base64 = "0.22"
 tauri-plugin-dialog = "2"
 
 [target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_System_Com", "Win32_UI_Shell"] }
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Devices_Display",
   "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_HiDpi",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_Graphics_Gdi",
   "Win32_Security",

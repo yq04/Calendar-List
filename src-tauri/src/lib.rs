@@ -11,6 +11,7 @@ mod color;
 mod db;
 mod display;
 mod desktop;
+mod desktop_zones;
 mod embed;
 mod editing;
 mod fonts;
@@ -202,6 +203,54 @@ fn wallpaper_info() -> wallpaper::WallpaperInfo {
 async fn wallpaper_read_image(path: Option<String>) -> Result<wallpaper::WallpaperImageData, String> {
     tauri::async_runtime::spawn_blocking(move || wallpaper::read_image_data(path.as_deref()))
         .await.map_err(|_| "壁纸图片读取未能完成".to_string())?
+}
+
+// The wallpaper transaction and its calendar placement share one command lock.
+static ZONES_COMMANDS: Mutex<()> = Mutex::new(());
+
+#[tauri::command]
+async fn desktop_zones_status(window: WebviewWindow) -> Result<desktop_zones::ZonesStatus, String> {
+    let hwnd = hwnd_of(&window);
+    tauri::async_runtime::spawn_blocking(move || desktop_zones::status(hwnd))
+        .await.map_err(|_| "读取桌面分区状态未能完成".to_string())?
+}
+
+#[tauri::command]
+async fn desktop_zones_apply(
+    window: WebviewWindow, config: desktop_zones::ZoneConfig, png_data_url: String,
+) -> Result<desktop_zones::ZonesStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = ZONES_COMMANDS.lock().map_err(|_| "桌面分区正在处理中，请重试")?;
+        let previous = read_dock_opts_from_settings();
+        if previous.position != "wallpaper-zone" {
+            store::merge_settings(&serde_json::json!({"desktop": {"beforeZonesDock": previous}}))?;
+        }
+        let monitor = config.monitor.clone();
+        let status = desktop_zones::apply(hwnd_of(&window), config, png_data_url)?;
+        let opts = DesktopDockOpts {
+            docked: true, position: "wallpaper-zone".into(), monitor,
+            ..previous
+        };
+        apply_dock_layout(&window, &opts, false);
+        Ok(status)
+    }).await.map_err(|_| "应用桌面分区未能完成".to_string())?
+}
+
+#[tauri::command]
+async fn desktop_zones_restore(window: WebviewWindow, monitor: String) -> Result<desktop_zones::ZonesStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = ZONES_COMMANDS.lock().map_err(|_| "桌面分区正在处理中，请重试")?;
+        let current = read_dock_opts_from_settings();
+        let status = desktop_zones::restore(hwnd_of(&window), monitor.clone())?;
+        if current.position == "wallpaper-zone" && current.monitor == monitor {
+            let saved = store::read_settings().pointer("/desktop/beforeZonesDock").cloned();
+            let opts = saved.and_then(|value| serde_json::from_value::<DesktopDockOpts>(value).ok())
+                .filter(|opts| opts.position != "wallpaper-zone")
+                .unwrap_or(DesktopDockOpts { docked: false, ..current });
+            apply_dock_layout(&window, &opts, false);
+        }
+        Ok(status)
+    }).await.map_err(|_| "恢复桌面壁纸未能完成".to_string())?
 }
 
 
@@ -540,7 +589,21 @@ fn apply_dock_layout(win: &WebviewWindow, opts: &DesktopDockOpts, is_startup: bo
         let w_ratio = opts.width_ratio.clamp(0.38, 0.94);
         let h_ratio = opts.height_ratio.clamp(0.55, 0.98);
 
-        let (x, y, w, h) = if opts.position == "current" {
+        let zone_rect = if opts.position == "wallpaper-zone" {
+            prev_settings.get("desktopZones")
+                .and_then(|value| value.get("configs"))
+                .and_then(|value| value.get(&target_mon.monitor))
+                .and_then(|value| serde_json::from_value::<desktop_zones::ZoneConfig>(value.clone()).ok())
+                .and_then(|config| desktop_zones::calendar_rect(&config, &target_mon).ok())
+        } else { None };
+        if zone_rect.is_none() {
+            let _ = win.set_min_size(Some(tauri::LogicalSize::new(720.0, 460.0)));
+        }
+        let (x, y, w, h) = if let Some([x, y, w, h]) = zone_rect {
+            // A zone may be narrower than the floating settings workspace.
+            let _ = win.set_min_size(Some(tauri::PhysicalSize::new(460, 360)));
+            (x, y, w, h)
+        } else if opts.position == "current" {
             let pos = win.outer_position().unwrap_or(tauri::PhysicalPosition::new(work[0] + margin, work[1] + margin));
             let size = win.outer_size().unwrap_or(tauri::PhysicalSize::new(1080, 760));
             let cw = (size.width as i32).clamp(460, work_w);
@@ -672,6 +735,7 @@ fn apply_dock_layout(win: &WebviewWindow, opts: &DesktopDockOpts, is_startup: bo
         let _ = embed::set_desktop_owner(hwnd);
         applied_rect = [x, y, w, h];
     } else {
+        let _ = win.set_min_size(Some(tauri::LogicalSize::new(720.0, 460.0)));
         embed::clear_desktop_owner(hwnd);
         let _ = win.set_skip_taskbar(false);
         let _ = win.set_resizable(true);
@@ -1238,6 +1302,9 @@ pub fn run() {
             db_doctor,
             wallpaper_info,
             wallpaper_read_image,
+            desktop_zones_status,
+            desktop_zones_apply,
+            desktop_zones_restore,
             theme_active,
             theme_list,
             theme_generate,

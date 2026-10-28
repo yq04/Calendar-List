@@ -1,5 +1,6 @@
 # Rust / Tauri build artifacts
 /src-tauri/target/
+/src-tauri/target-*/
 /target/
 **/*.rs.bk
 
@@ -20,6 +21,7 @@
 /docs/OPTIMIZATION_ROADMAP_2026.md
 /docs/ux-native-verification.md
 /docs/mcp-protocol-evidence.md
+/docs/RELEASE_NOTES_0.1.4.md
 
 # Test runtime & generated performance fixtures (keep only deterministic _fixture/calendar.db)
 /_fixture/*

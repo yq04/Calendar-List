@@ -1,0 +1,290 @@
+[
+  {
+    "display": {
+      "monitor": "fixture-24-fhd",
+      "pxW": 1920,
+      "pxH": 1080,
+      "mmW": 531,
+      "mmH": 299,
+      "diagonalIn": 24,
+      "ppi": 91.8,
+      "dpi": 96,
+      "dpiScale": 1,
+      "kalScale": 0.9562499999999999,
+      "ppiKnown": true,
+      "work": [
+        0,
+        0,
+        1920,
+        1040
+      ],
+      "rect": [
+        0,
+        0,
+        1920,
+        1080
+      ],
+      "orientation": "landscape",
+      "isPrimary": true
+    },
+    "config": {
+      "schema": 1,
+      "monitor": "fixture-24-fhd",
+      "sourcePath": "",
+      "fit": "cover",
+      "panelStyle": "auto",
+      "panelOpacity": 0.72,
+      "zones": [
+        {
+          "id": "calendar",
+          "kind": "calendar",
+          "label": "日历",
+          "x": 0.4817708333333333,
+          "y": 0.07211538461538461,
+          "width": 0.4791666666666667,
+          "height": 0.7875
+        },
+        {
+          "id": "software",
+          "kind": "software",
+          "label": "软件",
+          "x": 0.0390625,
+          "y": 0.07211538461538461,
+          "width": 0.4010416666666667,
+          "height": 0.3192307692307692
+        },
+        {
+          "id": "files",
+          "kind": "files",
+          "label": "文件",
+          "x": 0.0390625,
+          "y": 0.46826923076923077,
+          "width": 0.4010416666666667,
+          "height": 0.39134615384615384
+        }
+      ]
+    },
+    "expectedCalendar": [
+      935,
+      105,
+      900,
+      779
+    ]
+  },
+  {
+    "display": {
+      "monitor": "fixture-27-qhd",
+      "pxW": 2560,
+      "pxH": 1440,
+      "mmW": 597,
+      "mmH": 336,
+      "diagonalIn": 27,
+      "ppi": 108.8,
+      "dpi": 120,
+      "dpiScale": 1.25,
+      "kalScale": 1.1333333333333333,
+      "ppiKnown": true,
+      "work": [
+        1920,
+        0,
+        4480,
+        1390
+      ],
+      "rect": [
+        1920,
+        0,
+        4480,
+        1440
+      ],
+      "orientation": "landscape",
+      "isPrimary": false
+    },
+    "config": {
+      "schema": 1,
+      "monitor": "fixture-27-qhd",
+      "sourcePath": "",
+      "fit": "cover",
+      "panelStyle": "auto",
+      "panelOpacity": 0.72,
+      "zones": [
+        {
+          "id": "calendar",
+          "kind": "calendar",
+          "label": "日历",
+          "x": 0.518359375,
+          "y": 0.06762589928057554,
+          "width": 0.444921875,
+          "height": 0.7266187050359713
+        },
+        {
+          "id": "software",
+          "kind": "software",
+          "label": "软件",
+          "x": 0.03671875,
+          "y": 0.06762589928057554,
+          "width": 0.3890625,
+          "height": 0.2316546762589928
+        },
+        {
+          "id": "files",
+          "kind": "files",
+          "label": "文件",
+          "x": 0.03671875,
+          "y": 0.4949640287769784,
+          "width": 0.3890625,
+          "height": 0.2992805755395683
+        }
+      ]
+    },
+    "expectedCalendar": [
+      3260,
+      132,
+      1113,
+      959
+    ]
+  },
+  {
+    "display": {
+      "monitor": "fixture-portrait",
+      "pxW": 1440,
+      "pxH": 2560,
+      "mmW": 336,
+      "mmH": 597,
+      "diagonalIn": 27,
+      "ppi": 108.8,
+      "dpi": 144,
+      "dpiScale": 1.5,
+      "kalScale": 1.1333333333333333,
+      "ppiKnown": true,
+      "work": [
+        -1440,
+        -100,
+        0,
+        2400
+      ],
+      "rect": [
+        -1440,
+        -100,
+        0,
+        2460
+      ],
+      "orientation": "portrait",
+      "isPrimary": false
+    },
+    "config": {
+      "schema": 1,
+      "monitor": "fixture-portrait",
+      "sourcePath": "",
+      "fit": "cover",
+      "panelStyle": "auto",
+      "panelOpacity": 0.72,
+      "zones": [
+        {
+          "id": "calendar",
+          "kind": "calendar",
+          "label": "日历",
+          "x": 0.07847222222222222,
+          "y": 0.0452,
+          "width": 0.8430555555555556,
+          "height": 0.5092
+        },
+        {
+          "id": "software",
+          "kind": "software",
+          "label": "软件",
+          "x": 0.07847222222222222,
+          "y": 0.7092,
+          "width": 0.4041666666666667,
+          "height": 0.2
+        },
+        {
+          "id": "files",
+          "kind": "files",
+          "label": "文件",
+          "x": 0.5166666666666667,
+          "y": 0.7092,
+          "width": 0.4048611111111111,
+          "height": 0.2
+        }
+      ]
+    },
+    "expectedCalendar": [
+      -1312,
+      58,
+      1184,
+      1213
+    ]
+  },
+  {
+    "display": {
+      "monitor": "fixture-small-hd",
+      "pxW": 1366,
+      "pxH": 768,
+      "mmW": 345,
+      "mmH": 194,
+      "diagonalIn": 15.6,
+      "ppi": 100.5,
+      "dpi": 120,
+      "dpiScale": 1.25,
+      "kalScale": 1.046875,
+      "ppiKnown": true,
+      "work": [
+        0,
+        0,
+        1366,
+        728
+      ],
+      "rect": [
+        0,
+        0,
+        1366,
+        768
+      ],
+      "orientation": "landscape",
+      "isPrimary": false
+    },
+    "config": {
+      "schema": 1,
+      "monitor": "fixture-small-hd",
+      "sourcePath": "",
+      "fit": "cover",
+      "panelStyle": "auto",
+      "panelOpacity": 0.72,
+      "zones": [
+        {
+          "id": "calendar",
+          "kind": "calendar",
+          "label": "日历",
+          "x": 0.4480234260614934,
+          "y": 0.12912087912087913,
+          "width": 0.48316251830161056,
+          "height": 0.7417582417582418
+        },
+        {
+          "id": "software",
+          "kind": "software",
+          "label": "软件",
+          "x": 0.06881405563689605,
+          "y": 0.12912087912087913,
+          "width": 0.3579795021961933,
+          "height": 0.3131868131868132
+        },
+        {
+          "id": "files",
+          "kind": "files",
+          "label": "文件",
+          "x": 0.06881405563689605,
+          "y": 0.5576923076923077,
+          "width": 0.3579795021961933,
+          "height": 0.3131868131868132
+        }
+      ]
+    },
+    "expectedCalendar": [
+      625,
+      132,
+      634,
+      489
+    ]
+  }
+]

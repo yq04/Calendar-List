@@ -1,5 +1,7 @@
 # Kal 桌面交互与性能代码证据与风险分析
 
+> 2026-10-15 的历史分析，包含当时发现的问题与候选方案，不代表这些问题仍存在于当前版本。最新功能与验证范围以 [README](../../README.md) 和 [v0.1.3 发行说明](../RELEASE_NOTES_0.1.3.md) 为准。
+
 > 日期：2026-10-15  
 > 性质：只读代码静态核对报告（未运行测试、未启动应用、未修改现有源码）  
 > 依据文件：`ui/src/main.js`, `panel.js`, `theme.js`, `local-fonts.js`, `productivity.js`, `write-state.js`; `ui/styles/components.css`, `layout.css`; `src-tauri/src/lib.rs`, `db.rs`, `display.rs`, `theme.rs`, `embed.rs`; `tools/ui-check.mjs`, `tools/native-check.mjs`

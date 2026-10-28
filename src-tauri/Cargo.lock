@@ -1701,8 +1701,9 @@ dependencies = [
 
 [[package]]
 name = "kal-shell"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
+ "base64 0.22.1",
  "image",
  "rusqlite",
  "serde",
@@ -1710,6 +1711,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "windows",
  "windows-sys 0.61.2",
  "winreg",
 ]

@@ -1,0 +1,288 @@
+.kal-desktop-zones { gap: calc(9 * var(--kal-u)); }
+.kal-desktop-zones p { margin: 0; }
+.kal-zones-intro, .kal-zones-hint, .kal-zones-source,
+.kal-zones-status, .kal-zones-errors, .kal-zones-limitation {
+  font-size: calc(10.5 * var(--kal-u)); line-height: 1.6;
+  color: rgb(var(--kal-fg-muted));
+}
+.kal-zones-hint { font-size: calc(10 * var(--kal-u)); }
+.kal-zones-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kal-zones-status:empty, .kal-zones-errors:empty { display: none; }
+.kal-zones-status.is-error, .kal-zones-errors, .kal-zones-limitation { color: rgb(var(--kal-danger)); }
+.kal-zones-dirty {
+  font-size: calc(9 * var(--kal-u)); font-weight: 500; letter-spacing: 0;
+  color: rgb(var(--kal-accent)); margin-left: calc(5 * var(--kal-u));
+}
+.kal-zones-top-row, .kal-zones-source-buttons, .kal-zones-edit-head,
+.kal-zones-name-row, .kal-zones-actions { display: flex; align-items: end; gap: calc(7 * var(--kal-u)); }
+.kal-desktop-zones label {
+  display: flex; flex-direction: column; gap: calc(4 * var(--kal-u));
+  font-size: calc(10.5 * var(--kal-u)); font-weight: 500;
+  color: rgb(var(--kal-fg-muted)); min-width: 0;
+}
+.kal-zones-top-row > label, .kal-zones-edit-head > label,
+.kal-zones-name-row > label:first-child { flex: 1 1 auto; }
+.kal-desktop-zones input[type="text"], .kal-desktop-zones input[type="number"], .kal-desktop-zones select {
+  appearance: auto; font: inherit; color: rgb(var(--kal-fg));
+  background: rgb(var(--kal-surface) / .6);
+  border: 1px solid rgb(var(--kal-line) / .8); border-radius: calc(6 * var(--kal-u));
+  padding: calc(5 * var(--kal-u)) calc(7 * var(--kal-u)); min-height: calc(30 * var(--kal-u));
+  width: 100%; box-sizing: border-box;
+}
+.kal-desktop-zones input:focus-visible, .kal-desktop-zones select:focus-visible,
+.kal-zones-preset:focus-visible { outline: 2px solid rgb(var(--kal-focus) / .8); outline-offset: 2px; }
+.kal-desktop-zones :disabled { opacity: .48; cursor: default; }
+.kal-zones-presets { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: calc(6 * var(--kal-u)); }
+.kal-zones-preset {
+  appearance: none; font: inherit; font-size: calc(10.5 * var(--kal-u));
+  color: rgb(var(--kal-fg-muted)); background: rgb(var(--kal-surface) / .3);
+  border: 1px solid rgb(var(--kal-line) / .7); border-radius: calc(7 * var(--kal-u));
+  display: flex; align-items: center; justify-content: center; gap: calc(7 * var(--kal-u));
+  padding: calc(7 * var(--kal-u)) calc(4 * var(--kal-u)); cursor: pointer;
+}
+.kal-zones-preset:hover, .kal-zones-preset.is-on {
+  color: rgb(var(--kal-accent)); border-color: rgb(var(--kal-accent) / .6); background: rgb(var(--kal-accent) / .08);
+}
+.kal-zones-preset-icon { width: calc(27 * var(--kal-u)); height: calc(19 * var(--kal-u)); position: relative; flex: 0 0 auto; }
+.kal-zones-preset-icon i { position: absolute; border: 1px solid currentColor; border-radius: 2px; opacity: .7; box-sizing: border-box; }
+.kal-zones-preset-icon.is-right i:first-child { left: 52%; top: 0; width: 48%; height: 100%; background: currentColor; opacity: .27; }
+.kal-zones-preset-icon.is-right i:nth-child(2) { left: 0; top: 0; width: 45%; height: 45%; }
+.kal-zones-preset-icon.is-right i:nth-child(3) { left: 0; bottom: 0; width: 45%; height: 45%; }
+.kal-zones-preset-icon.is-left { transform: scaleX(-1); }
+.kal-zones-preset-icon.is-left i:first-child { left: 52%; top: 0; width: 48%; height: 100%; background: currentColor; opacity: .27; }
+.kal-zones-preset-icon.is-left i:nth-child(2) { left: 0; top: 0; width: 45%; height: 45%; }
+.kal-zones-preset-icon.is-left i:nth-child(3) { left: 0; bottom: 0; width: 45%; height: 45%; }
+.kal-zones-preset-icon.is-portrait i:first-child { inset: 0 0 42%; background: currentColor; opacity: .27; }
+.kal-zones-preset-icon.is-portrait i:nth-child(2) { left: 0; bottom: 0; width: 45%; height: 32%; }
+.kal-zones-preset-icon.is-portrait i:nth-child(3) { right: 0; bottom: 0; width: 45%; height: 32%; }
+.kal-zones-stage {
+  width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
+  border-radius: calc(8 * var(--kal-u)); background: #1e3040;
+  border: 1px solid rgb(var(--kal-line) / .8); isolation: isolate;
+}
+.kal-zones-canvas { display: block; width: 100%; height: 100%; }
+.kal-zones-handles { position: absolute; inset: 0; }
+.kal-zones-zone {
+  position: absolute; box-sizing: border-box; border: 1px solid transparent;
+  border-radius: calc(5 * var(--kal-u)); cursor: move; touch-action: none;
+}
+.kal-zones-zone:hover { border-color: rgba(255,255,255,.72); }
+.kal-zones-zone.is-selected { outline: 2px solid #7dc4ff; outline-offset: -1px; border-color: #163f73; }
+.kal-zones-zone:focus-visible { outline: 2px dashed #7dc4ff; outline-offset: 2px; }
+.kal-zones-zone[aria-disabled="true"] { cursor: default; }
+.kal-zones-grip {
+  position: absolute; right: -5px; bottom: -5px; width: 22px; height: 22px;
+  cursor: nwse-resize; border-radius: 3px;
+}
+.kal-zones-grip::after {
+  content: ""; position: absolute; right: 5px; bottom: 5px; width: 7px; height: 7px;
+  border-right: 2px solid #ecf7ff; border-bottom: 2px solid #ecf7ff; filter: drop-shadow(0 1px 1px #163f73);
+}
+.kal-zones-calendar-ghost {
+  position: absolute; pointer-events: none; display: grid; grid-template-columns: repeat(7,minmax(0,1fr));
+  grid-template-rows: repeat(5,minmax(0,1fr)); gap: 1px; opacity: .68;
+}
+.kal-zones-calendar-ghost i {
+  font-style: normal; font-family: inherit; font-size: clamp(5px,.7vw,8px); text-align: left;
+  color: #24374b; background: rgba(255,255,255,.4); padding: 1px 2px; overflow: hidden; border-radius: 1px;
+}
+.kal-zones-taskbar {
+  position: absolute; z-index: 2; pointer-events: none;
+  display: flex; justify-content: center; align-items: center;
+  background: rgba(12,19,30,.72); color: rgba(255,255,255,.72); font-size: 7px; overflow: hidden;
+}
+.kal-zones-taskbar[hidden] { display: none; }
+.kal-zones-edit-card {
+  display: flex; flex-direction: column; gap: calc(8 * var(--kal-u));
+  padding: calc(10 * var(--kal-u)); border-radius: calc(8 * var(--kal-u));
+  border: 1px solid rgb(var(--kal-line) / .6); background: rgb(var(--kal-surface) / .18);
+}
+.kal-zones-name-row > label:last-child { flex: 0 1 30%; }
+.kal-zones-geometry { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: calc(7 * var(--kal-u)); }
+.kal-zones-appearance { display: grid; grid-template-columns: 1fr 1fr; gap: calc(8 * var(--kal-u)); }
+.kal-zones-opacity { grid-column: 1/-1; }
+.kal-zones-opacity > div { display: flex; gap: calc(6 * var(--kal-u)); align-items: center; }
+.kal-zones-opacity input[type="range"] {
+  flex: 1 1 auto; min-width: 0; min-height: 30px; accent-color: rgb(var(--kal-accent));
+}
+.kal-zones-opacity input[type="number"] { width: calc(64 * var(--kal-u)); flex: 0 0 auto; }
+.kal-zones-actions { flex-wrap: wrap; }
+.kal-desktop-zones > .kal-sec-head-row { flex-wrap: wrap; }
+.kal-desktop-zones > .kal-sec-head-row .kal-zones-actions { margin-inline-start: auto; }
+
+/* Pixel-sized editor furniture stays legible when a large monitor is scaled down. */
+.kal-desktop-zones > .kal-sec-head-row {
+  position: sticky; top: 0; z-index: 6;
+  background: rgb(var(--kal-bg) / .98); padding-block: calc(5 * var(--kal-u));
+}
+.kal-zones-toolbar {
+  display: flex; align-items: end; flex-wrap: wrap; gap: calc(7 * var(--kal-u));
+  padding: calc(8 * var(--kal-u)); border-radius: calc(7 * var(--kal-u));
+  background: rgb(var(--kal-surface) / .38); border: 1px solid rgb(var(--kal-line) / .6);
+}
+.kal-zones-margin-label { flex: 1 1 150px; }
+.kal-desktop-zones .kal-zones-snap-label {
+  flex-direction: row; align-items: center; align-self: center; gap: 5px;
+  white-space: nowrap; padding: 4px;
+}
+.kal-zones-snap-label input { accent-color: rgb(var(--kal-accent)); width: 15px; height: 15px; }
+.kal-zones-history { display: flex; gap: 2px; margin-inline-start: auto; }
+.kal-zones-workspace { display: flex; flex-direction: column; gap: calc(10 * var(--kal-u)); min-width: 0; }
+.kal-zones-stage-column { display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
+.kal-zones-stage { flex: 0 0 auto; }
+.kal-zones-keys { align-self: stretch; }
+.kal-zones-safe-area {
+  position: absolute; z-index: 1; box-sizing: border-box; pointer-events: none;
+  border: 1px dashed rgba(159, 241, 205, .9);
+}
+.kal-zones-safe-area[hidden] { display: none; }
+.kal-zones-safe-area > span {
+  position: absolute; right: 0; top: -17px; padding: 1px 4px;
+  background: rgba(12, 34, 38, .88); color: #e0fff0; border-radius: 3px;
+  font-size: 10px; line-height: 14px; white-space: nowrap;
+}
+.kal-zones-zone { z-index: 2; }
+.kal-zones-zone.is-selected { z-index: 3; }
+.kal-zones-zone-label, .kal-zones-zone-size {
+  position: absolute; z-index: 3; left: 6px; pointer-events: none;
+  display: block; width: max-content; max-width: calc(100% - 12px);
+  white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+  border-radius: 3px; padding: 2px 5px; background: rgba(14, 29, 45, .87); color: #f1f8ff;
+  line-height: 16px; font-family: inherit; text-shadow: none;
+}
+.kal-zones-zone-label { top: 5px; font-size: 11px; font-weight: 600; }
+.kal-zones-zone-size { top: 27px; font-size: 10px; font-variant-numeric: tabular-nums; opacity: .9; }
+.kal-zones-grip { display: none; z-index: 4; width: 24px; height: 24px; right: auto; bottom: auto; }
+.kal-zones-zone.is-selected .kal-zones-grip { display: block; }
+.kal-zones-grip::after {
+  inset: 8px; width: 8px; height: 8px; border: 1px solid #163f73; border-radius: 2px;
+  background: #ecf7ff; box-sizing: border-box; filter: none;
+}
+.kal-zones-grip[data-zone-resize="se"] { right: -11px; bottom: -11px; cursor: nwse-resize; }
+.kal-zones-grip[data-zone-resize="sw"] { left: -11px; bottom: -11px; cursor: nesw-resize; }
+.kal-zones-grip[data-zone-resize="ne"] { right: -11px; top: -11px; cursor: nesw-resize; }
+.kal-zones-grip[data-zone-resize="nw"] { left: -11px; top: -11px; cursor: nwse-resize; }
+.kal-zones-grip[data-zone-resize="e"] { right: -11px; top: calc(50% - 12px); cursor: ew-resize; }
+.kal-zones-grip[data-zone-resize="w"] { left: -11px; top: calc(50% - 12px); cursor: ew-resize; }
+.kal-zones-grip[data-zone-resize="n"] { left: calc(50% - 12px); top: -11px; cursor: ns-resize; }
+.kal-zones-grip[data-zone-resize="s"] { left: calc(50% - 12px); bottom: -11px; cursor: ns-resize; }
+.kal-zones-guides { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.kal-zones-guides > i { position: absolute; display: block; background: #f7b5ff; box-shadow: 0 0 1px #43254c; }
+.kal-zones-guides > .is-x { top: 0; bottom: 0; width: 1px; }
+.kal-zones-guides > .is-y { left: 0; right: 0; height: 1px; }
+.kal-zones-unit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: rgb(var(--kal-fg-muted)); font-size: calc(10.5 * var(--kal-u)); }
+.kal-zones-unit-row > span { flex: 0 0 auto; white-space: nowrap; }
+.kal-zones-unit-row select { flex: 1 1 auto; min-width: 0; width: auto; max-width: 170px; }
+.kal-zones-nudge { display: flex; align-items: center; gap: 4px; }
+.kal-zones-nudge > span { color: rgb(var(--kal-fg-muted)); font-size: calc(10 * var(--kal-u)); margin-inline-end: auto; }
+.kal-zones-nudge > button { min-width: 29px; padding-inline: 7px; }
+.kal-zones-selection-info { font-size: calc(10 * var(--kal-u)); color: rgb(var(--kal-fg-muted)); font-variant-numeric: tabular-nums; }
+
+/* Focus mode grows inside the existing app window; it creates no extra webview. */
+body.kal-zones-expanded .kal-panel { width: calc(100vw - 20px); height: calc(100vh - 20px); }
+body.kal-panel-open .kal-desktop-zones.is-expanded {
+  position: absolute; inset: 0; z-index: 12; margin: 0; padding: 12px;
+  display: flex; min-height: 0; overflow: hidden; border: none; border-radius: inherit;
+  background: rgb(var(--kal-bg));
+}
+.kal-desktop-zones.is-expanded > .kal-sec-head-row { flex: 0 0 auto; top: auto; }
+.kal-desktop-zones.is-expanded > .kal-zones-toolbar { flex: 0 0 auto; }
+.kal-desktop-zones.is-expanded > .kal-zones-intro,
+.kal-desktop-zones.is-expanded > .kal-zones-top-row,
+.kal-desktop-zones.is-expanded > .kal-zones-presets,
+.kal-desktop-zones.is-expanded > .kal-zones-appearance,
+.kal-desktop-zones.is-expanded > .kal-zones-source,
+.kal-desktop-zones.is-expanded > .kal-zones-limitation,
+.kal-desktop-zones.is-expanded > .kal-zones-hint { display: none; }
+.kal-desktop-zones.is-expanded .kal-zones-workspace {
+  flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr) 252px; gap: 12px;
+}
+.kal-desktop-zones.is-expanded .kal-zones-stage-column { min-height: 0; justify-content: center; overflow: hidden; }
+.kal-desktop-zones.is-expanded .kal-zones-edit-card { min-height: 0; overflow: auto; align-self: stretch; }
+.kal-desktop-zones.is-expanded .kal-zones-geometry { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.kal-desktop-zones.is-expanded .kal-zones-edit-head { flex-wrap: wrap; }
+.kal-desktop-zones.is-expanded .kal-zones-edit-head > label { flex-basis: 100%; }
+.kal-desktop-zones.is-expanded > .kal-zones-status,
+.kal-desktop-zones.is-expanded > .kal-zones-errors { flex: 0 0 auto; max-height: 48px; overflow: auto; }
+
+/* Common choices lead with the preview; detailed controls open only when needed. */
+.kal-desktop-zones { gap: calc(8 * var(--kal-u)); }
+.kal-zones-quick-controls { display: flex; flex-direction: column; gap: calc(7 * var(--kal-u)); min-width: 0; }
+.kal-zones-display-info, .kal-zones-composition-info {
+  color: rgb(var(--kal-fg-muted)); font-size: calc(10 * var(--kal-u)); line-height: 1.45;
+}
+.kal-zones-display-info { margin-top: calc(-2 * var(--kal-u)) !important; }
+.kal-zones-composition-info { min-height: 1.4em; }
+.kal-zones-design-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(200px, 1.3fr); gap: calc(10 * var(--kal-u)); align-items: end; }
+.kal-zones-recipe-group { min-width: 0; }
+.kal-zones-recipe-group > span { display: block; font-size: calc(10.5 * var(--kal-u)); color: rgb(var(--kal-fg-muted)); margin-bottom: calc(4 * var(--kal-u)); }
+.kal-zones-recipes { display: flex; gap: calc(5 * var(--kal-u)); }
+.kal-zones-recipe {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: calc(5 * var(--kal-u));
+  min-height: calc(30 * var(--kal-u)); padding: calc(5 * var(--kal-u)) calc(7 * var(--kal-u));
+  font: inherit; font-size: calc(10.5 * var(--kal-u)); cursor: pointer; color: rgb(var(--kal-fg-muted));
+  background: rgb(var(--kal-surface) / .38); border: 1px solid rgb(var(--kal-line) / .7); border-radius: calc(6 * var(--kal-u));
+}
+.kal-zones-recipe > i { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(120,132,147,.3); background: linear-gradient(135deg,#fbf7ec 48%,#354b5a 49%); }
+.kal-zones-recipe[data-zone-recipe="clear"] > i { opacity: .55; }
+.kal-zones-recipe[data-zone-recipe="dark"] > i { background: linear-gradient(135deg,#455565,#1c2b38); }
+.kal-zones-recipe:hover, .kal-zones-recipe.is-on { color: rgb(var(--kal-accent)); border-color: rgb(var(--kal-accent) / .6); background: rgb(var(--kal-accent) / .07); }
+.kal-zones-recipe:focus-visible { outline: 2px solid rgb(var(--kal-focus) / .8); outline-offset: 2px; }
+.kal-zones-stage-column { padding: calc(8 * var(--kal-u)); border: 1px solid rgb(var(--kal-line) / .55); border-radius: calc(9 * var(--kal-u)); background: rgb(var(--kal-surface) / .15); }
+.kal-zones-stage { border-color: rgb(var(--kal-line) / .45); box-shadow: 0 3px 10px rgba(18,31,44,.08); }
+.kal-zones-zone-label { background: rgba(20,36,48,.86); border-radius: 4px; padding: 2px 6px; }
+.kal-zones-zone.is-light .kal-zones-zone-label { color: #283a48; background: rgba(251,250,245,.93); }
+.kal-zones-zone-size { opacity: 0; transition: opacity 120ms ease; }
+.kal-zones-zone.is-selected .kal-zones-zone-size, .kal-zones-zone:hover .kal-zones-zone-size { opacity: .9; }
+.kal-zones-safe-area { border-color: rgba(161,213,190,.65); }
+.kal-zones-safe-area > span { opacity: .85; }
+.kal-zones-editor-details, .kal-zones-surface-details { min-width: 0; border: 1px solid rgb(var(--kal-line) / .6); border-radius: calc(7 * var(--kal-u)); }
+.kal-zones-editor-details > summary, .kal-zones-surface-details > summary {
+  display: flex; align-items: center; min-height: calc(32 * var(--kal-u)); padding: calc(7 * var(--kal-u)) calc(10 * var(--kal-u));
+  color: rgb(var(--kal-fg)); font-size: calc(10.5 * var(--kal-u)); font-weight: 600; cursor: pointer; list-style: none;
+}
+.kal-zones-editor-details > summary::-webkit-details-marker, .kal-zones-surface-details > summary::-webkit-details-marker { display: none; }
+.kal-zones-editor-details > summary > span { font-size: calc(10 * var(--kal-u)); font-weight: 400; margin-inline-start: 8px; color: rgb(var(--kal-fg-muted)); }
+.kal-zones-editor-details > summary::after, .kal-zones-surface-details > summary::after { content: ""; width: 5px; height: 5px; border-right: 1.3px solid currentColor; border-bottom: 1.3px solid currentColor; transform: rotate(-45deg); margin-inline-start: auto; }
+.kal-zones-editor-details[open] > summary::after, .kal-zones-surface-details[open] > summary::after { transform: rotate(45deg); }
+.kal-zones-editor-details > summary:focus-visible, .kal-zones-surface-details > summary:focus-visible { outline: 2px solid rgb(var(--kal-focus)); outline-offset: 2px; }
+.kal-zones-editor-details .kal-zones-edit-card { border: none; background: none; padding-top: 0; }
+.kal-zones-surface-details .kal-zones-appearance { padding: calc(2 * var(--kal-u)) calc(10 * var(--kal-u)) calc(10 * var(--kal-u)); }
+.kal-desktop-zones.is-expanded > .kal-zones-quick-controls { flex: 0 0 auto; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 5px 12px; }
+.kal-desktop-zones.is-expanded .kal-zones-top-row { grid-column: 1/-1; }
+.kal-desktop-zones.is-expanded .kal-zones-display-info { grid-column: 1/-1; }
+.kal-desktop-zones.is-expanded .kal-zones-presets { align-self: end; }
+.kal-desktop-zones.is-expanded .kal-zones-design-row { grid-template-columns: minmax(95px,1fr) minmax(160px,1.3fr); gap: 7px; }
+.kal-desktop-zones.is-expanded .kal-zones-composition-info { display: none; }
+.kal-desktop-zones.is-expanded > .kal-zones-surface-details { display: none; }
+.kal-desktop-zones.is-expanded .kal-zones-editor-details { min-height: 0; overflow: auto; background: rgb(var(--kal-surface) / .13); }
+.kal-desktop-zones.is-expanded .kal-zones-editor-details > summary { pointer-events: none; }
+.kal-desktop-zones.is-expanded .kal-zones-editor-details > summary::after,
+.kal-desktop-zones.is-expanded .kal-zones-editor-details > summary > span { display: none; }
+.kal-desktop-zones.is-expanded .kal-zones-stage-column { min-height: 0; padding: 8px; }
+.kal-desktop-zones.is-expanded .kal-zones-edit-card { overflow: visible; }
+.kal-desktop-zones.is-expanded > .kal-zones-toolbar { padding: 5px 8px; gap: 5px; }
+.kal-desktop-zones.is-expanded > .kal-zones-toolbar .kal-zones-margin-label { flex: 0 1 180px; }
+
+@media (max-width: 480px) {
+  .kal-zones-top-row { align-items: stretch; flex-direction: column; }
+  .kal-zones-source-buttons .kal-btn { flex: 1 1 auto; }
+  .kal-zones-preset { flex-direction: column; gap: 4px; }
+  .kal-zones-edit-head { flex-wrap: wrap; }
+  .kal-zones-edit-head > label { flex-basis: 100%; }
+  .kal-zones-geometry { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 760px) {
+  .kal-desktop-zones.is-expanded .kal-zones-workspace { grid-template-columns: minmax(0,1fr) 210px; gap: 7px; }
+  .kal-desktop-zones.is-expanded { padding: 8px; }
+  .kal-desktop-zones.is-expanded .kal-zones-name-row { flex-direction: column; align-items: stretch; }
+  .kal-desktop-zones.is-expanded > .kal-zones-quick-controls { grid-template-columns: 1fr; }
+  .kal-desktop-zones.is-expanded .kal-zones-presets { display: none; }
+  .kal-desktop-zones.is-expanded .kal-zones-design-row { grid-template-columns: minmax(100px,1fr) minmax(190px,1.3fr); }
+}
+@media (max-width: 480px) {
+  .kal-zones-design-row { grid-template-columns: 1fr; gap: 7px; }
+  .kal-desktop-zones.is-expanded .kal-zones-workspace { grid-template-columns: minmax(0,1fr) 180px; }
+  .kal-desktop-zones.is-expanded .kal-zones-design-row { grid-template-columns: minmax(80px,1fr) minmax(145px,1.3fr); }
+  .kal-zones-recipe { padding-inline: 3px; gap: 3px; }
+}

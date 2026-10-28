@@ -971,11 +971,68 @@ body.kal-reduced-motion *::after {
   font-variant-numeric: tabular-nums;
 }
 
-.kal-adv-group > summary {
-  cursor: pointer;
-  padding: 8px 0;
+/* Settings disclosure headings share the section typography and one chevron.
+   An unstyled summary otherwise inherits the browser's 16px body size. */
+.kal-advanced-summary,
+.kal-adv-group > summary,
+.kal-panel .kal-tools-section > summary {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--kal-u));
+  min-height: calc(32 * var(--kal-u));
+  padding: calc(6 * var(--kal-u)) calc(4 * var(--kal-u));
+  border-radius: calc(4 * var(--kal-u));
+  font-family: inherit;
+  font-size: calc(11.5 * var(--kal-u));
   font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.kal-adv-group > summary {
   color: rgb(var(--kal-fg));
+}
+.kal-advanced-summary::-webkit-details-marker,
+.kal-adv-group > summary::-webkit-details-marker,
+.kal-panel .kal-tools-section > summary::-webkit-details-marker {
+  display: none;
+}
+.kal-advanced-summary::marker,
+.kal-adv-group > summary::marker,
+.kal-panel .kal-tools-section > summary::marker {
+  content: "";
+}
+.kal-advanced-summary::after,
+.kal-adv-group > summary::after,
+.kal-panel .kal-tools-section > summary::after {
+  content: "";
+  flex: 0 0 auto;
+  width: calc(6 * var(--kal-u));
+  height: calc(6 * var(--kal-u));
+  margin-inline: auto calc(3 * var(--kal-u));
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: rgb(var(--kal-fg-muted));
+  transform: rotate(-45deg);
+  transition: transform 150ms var(--kal-ease-out);
+}
+.kal-advanced-drawer[open] > .kal-advanced-summary::after,
+.kal-adv-group[open] > summary::after,
+.kal-panel .kal-tools-section[open] > summary::after {
+  transform: rotate(45deg);
+}
+.kal-advanced-summary:hover,
+.kal-adv-group > summary:hover,
+.kal-panel .kal-tools-section > summary:hover {
+  background: rgb(var(--kal-surface-hover) / 0.22);
+}
+.kal-advanced-summary:focus-visible,
+.kal-adv-group > summary:focus-visible,
+.kal-panel .kal-tools-section > summary:focus-visible {
+  outline: 2px solid rgb(var(--kal-accent));
+  outline-offset: 2px;
 }
 .kal-adv-group > .kal-sec-head-row { margin: 4px 0; }
 body.kal-panel-peek .kal-panel-backdrop { display: none; }

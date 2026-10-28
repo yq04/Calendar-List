@@ -785,6 +785,12 @@ pub fn activate(id: &str) -> Result<(), String> {
 }
 
 pub fn settings_patch(patch: &serde_json::Value) -> Result<serde_json::Value, String> {
+    if patch.get("desktopZones").is_some()
+        || patch.pointer("/desktop/beforeZonesDock").is_some()
+        || patch.get("desktop").is_some_and(|value| !value.is_object())
+    {
+        return Err("壁纸分区的恢复记录只能通过分区应用或恢复操作更新".into());
+    }
     let _guard = THEMES_WRITE.lock().map_err(|_| "主题设置暂时无法保存")?;
     if let Some(id) = patch.get("activeTheme") {
         let id = id.as_str().ok_or("activeTheme 必须是主题 ID")?;
@@ -967,6 +973,21 @@ fn export_at(root: &Path, t: &Theme, path: &PathBuf) -> Result<String, String> {
 #[cfg(test)]
 #[path = "theme_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod desktop_zones_settings_tests {
+    #[test]
+    fn desktop_zones_recovery_records_reject_generic_settings_writes() {
+        for patch in [
+            serde_json::json!({"desktopZones": null}),
+            serde_json::json!({"desktopZones": {"records": {}}}),
+            serde_json::json!({"desktop": {"beforeZonesDock": null}}),
+            serde_json::json!({"desktop": null}),
+        ] {
+            assert!(super::settings_patch(&patch).is_err());
+        }
+    }
+}
 
 /// 当前生效主题：settings 里有就用它，否则用内置默认
 pub fn active() -> Theme {

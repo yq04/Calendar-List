@@ -9,9 +9,10 @@ import {
   ART_BACKDROPS, STYLE_RECIPES, FONT_PRESETS, CONTENT_PRESETS,
   applyStyleRecipe, applyContentPreset, applyFontPreset, applySteadyWallAlpha,
   ACCENT_SWATCHES, applyAccentSwatch, applyI18nToDom,
-  APP_VERSION, APP_STAGE_LABEL,
+  APP_VERSION,
 } from "./theme.js";
 import { createLocalFonts, localFontId } from "./local-fonts.js";
+import { mountDesktopZones } from "./desktop-zones.js";
 
 const SIZE = (min, max, step = 1) => ({ min, max, step });
 
@@ -131,8 +132,11 @@ const SECTIONS = [
 export function createPanel({
   mount, getTheme, onPreview, onCommit, onRegen, onReset, onFactoryReset, onCommitQuickAlpha, onModeChange,
   onApply, onExport, onImport, onOpen, onCancel, onUndo,
-  getDockConfig, onApplyDock, bridge, localFonts,
+  getDockConfig, onApplyDock, bridge, localFonts, appVersion,
 }) {
+  const runtimeVersion = typeof appVersion === "string" && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(appVersion)
+    ? appVersion : APP_VERSION;
+  const runtimeLabel = `v${runtimeVersion}`;
   const backdrop = document.createElement("div");
   backdrop.className = "kal-panel-backdrop";
   backdrop.setAttribute("aria-hidden", "true");
@@ -147,7 +151,7 @@ export function createPanel({
     <div class="kal-panel-head">
       <span class="kal-panel-title">
         设置中心
-        <span class="kal-panel-version" id="kal-panel-version">${APP_STAGE_LABEL}</span>
+        <span class="kal-panel-version" id="kal-panel-version">${runtimeLabel}</span>
         <span class="kal-panel-dirty" id="kal-panel-dirty" hidden>● 预览中 · 未保存</span>
       </span>
       <button class="kal-btn kal-btn-ghost" data-act="peek" aria-pressed="false" title="查看日历的实时效果">查看日历</button>
@@ -281,6 +285,7 @@ export function createPanel({
     if (activeTab === "color" && advancedDrawer) {
       advancedDrawer.open = true;
     }
+    if (activeTab === "backdrop") desktopZones.refresh();
   }
   el.querySelectorAll(".kal-panel-tab").forEach(btn => {
     btn.addEventListener("click", () => applyTabFilter(btn.dataset.tab));
@@ -550,7 +555,7 @@ export function createPanel({
     if (dockStatusEl) {
       const posObj = DOCK_POSITIONS.find(p => p.id === cfg.position) || DOCK_POSITIONS[0];
       dockStatusEl.textContent = cfg.docked
-        ? `当前已固定：${posObj.name}（点击顶栏图钉可随时切换）`
+        ? `当前已固定：${cfg.position === "wallpaper-zone" ? "壁纸日历分区" : posObj.name}（点击顶栏图钉可随时切换）`
         : "当前为可移动窗口（默认），开启后固定到桌面底层";
     }
     dockPosGrid?.querySelectorAll(".kal-dock-pos-card").forEach(card => {
@@ -1070,6 +1075,16 @@ export function createPanel({
 
   // ---------------------------------------------------------- 5. 背景画布与壁纸智能取色
 
+  const desktopZones = mountDesktopZones({
+    mount: body,
+    bridge,
+    onApplied: async () => {
+      const dock = await bridge.desktopDockStatus();
+      await onApplyDock(dock, false);
+      addLog("system", "更新桌面壁纸分区与日历位置");
+    },
+  });
+
   const backdropSec = document.createElement("div");
   backdropSec.className = "kal-sec";
   backdropSec.dataset.cat = "backdrop";
@@ -1296,34 +1311,26 @@ export function createPanel({
   updateSec.id = "kal-update-sec";
   updateSec.dataset.cat = "logs";
   updateSec.innerHTML = `
-    <div class="kal-sec-title">版本与检查更新</div>
+    <div class="kal-sec-title">版本信息</div>
     <div class="kal-card-group kal-update-card">
       <div class="kal-update-hero">
         <img class="kal-update-logo" src="./favicon.png" alt="Calendar List" width="28" height="28" />
         <div class="kal-update-meta">
-          <div class="kal-update-name">日历清单 · Calendar List <span class="kal-update-ver-pill" id="kal-update-ver-pill">${APP_STAGE_LABEL}</span></div>
-          <div class="kal-update-sub" id="kal-update-status">当前版本：${APP_STAGE_LABEL}</div>
+          <div class="kal-update-name">日历清单 · Calendar List <span class="kal-update-ver-pill" id="kal-update-ver-pill">${runtimeLabel}</span></div>
+          <div class="kal-update-sub" id="kal-update-status">当前版本：${runtimeLabel}</div>
         </div>
         <div class="kal-update-actions">
-          <button type="button" class="kal-btn kal-update-btn" id="kal-check-update-btn">检查更新</button>
+          <button type="button" class="kal-btn kal-update-btn" id="kal-check-update-btn">查看版本</button>
           <button type="button" class="kal-btn kal-btn-ghost kal-update-btn" id="kal-changelog-btn" aria-expanded="false">更新说明</button>
         </div>
       </div>
-      <div class="kal-row kal-row-rich">
-        <div class="kal-row-meta">
-          <label for="kal-auto-update-toggle">启动时自动检查更新</label>
-        </div>
-        <div class="kal-row-ctl kal-row-ctl-end">
-          <input type="checkbox" id="kal-auto-update-toggle" class="kal-switch" checked aria-label="启动时自动检查更新" />
-        </div>
-      </div>
       <div class="kal-changelog-box" id="kal-changelog-box" hidden>
-        <div class="kal-changelog-title">${APP_STAGE_LABEL} 更新亮点</div>
+        <div class="kal-changelog-title">${runtimeLabel} 更新亮点</div>
         <ul class="kal-changelog-list">
-          <li>默认专注纯日历视图，可在设置中随时勾选「显示右侧展示栏」开启当日与近期安排侧栏</li>
-          <li>修复多条日程格内自动换行逻辑，消除无故单行「...」截断，完整呈现多项安排</li>
-          <li>精简右侧展示栏冗余按钮与底部抽屉，对齐完成圆圈与文字基线，新增「近期安排」概览</li>
-          <li>支持安装目录独立存储与跨版本覆盖升级自动继承日程、设置、主题与操作日志</li>
+          <li>新增静态壁纸分区，提供均衡、疏朗、紧凑布局与图标留白</li>
+          <li>支持像素精调、吸附、放大编辑，以及分区独立撤销和恢复壁纸</li>
+          <li>统一高级设置样式，按目标屏工作区与缩放调整分区比例</li>
+          <li>保留纯月历、事项完整换行与可选右侧展示栏</li>
         </ul>
       </div>
     </div>
@@ -1333,56 +1340,28 @@ export function createPanel({
   const changelogBtn = updateSec.querySelector("#kal-changelog-btn");
   const changelogBox = updateSec.querySelector("#kal-changelog-box");
   const updateStatusEl = updateSec.querySelector("#kal-update-status");
-  const autoUpdateToggle = updateSec.querySelector("#kal-auto-update-toggle");
-
-  try {
-    const savedAuto = window.localStorage?.getItem("kal.autoCheckUpdate");
-    if (savedAuto !== null && autoUpdateToggle) {
-      autoUpdateToggle.checked = savedAuto !== "false";
-    }
-  } catch { /* ignore */ }
-
-  autoUpdateToggle?.addEventListener("change", () => {
-    const on = Boolean(autoUpdateToggle.checked);
-    try { window.localStorage?.setItem("kal.autoCheckUpdate", String(on)); } catch { /* ignore */ }
-    addLog("system", on ? "开启「启动时自动检查更新」" : "关闭「启动时自动检查更新」");
-  });
-
   changelogBtn?.addEventListener("click", () => {
     if (!changelogBox) return;
     changelogBox.hidden = !changelogBox.hidden;
     changelogBtn.setAttribute("aria-expanded", String(!changelogBox.hidden));
   });
 
-  checkUpdateBtn?.addEventListener("click", async () => {
-    if (!checkUpdateBtn || checkUpdateBtn.disabled) return;
-    checkUpdateBtn.disabled = true;
-    const origText = checkUpdateBtn.textContent;
-    checkUpdateBtn.textContent = "检查中…";
-    if (updateStatusEl) {
-      updateStatusEl.textContent = `正在校验 ${APP_STAGE_LABEL} 版本状态…`;
-      updateStatusEl.classList.remove("is-ok");
-    }
-    await new Promise(r => setTimeout(r, 120));
+  checkUpdateBtn?.addEventListener("click", () => {
     const stamp = new Date().toTimeString().slice(0, 8);
     const result = {
-      version: APP_VERSION,
-      stage: APP_STAGE_LABEL,
-      latestVersion: APP_VERSION,
-      upToDate: true,
+      version: runtimeVersion,
+      stage: runtimeLabel,
+      checkedOnline: false,
       checkedAt: stamp,
     };
     window.__KAL_LAST_UPDATE_CHECK__ = result;
     if (updateStatusEl) {
-      updateStatusEl.textContent = `✓ 当前已是最新版本 ${APP_STAGE_LABEL}（${stamp}）`;
-      updateStatusEl.classList.add("is-ok");
+      updateStatusEl.textContent = `当前运行版本 ${runtimeLabel}。在线更新检查尚未接入。`;
     }
     if (reportEl) {
-      reportEl.textContent = `当前运行版本 ${APP_STAGE_LABEL} 已是最新稳定版。`;
+      reportEl.textContent = `当前运行版本 ${runtimeLabel}；新版下载请查看 GitHub Releases。`;
     }
-    addLog("system", `检查版本更新：当前已是最新 ${APP_STAGE_LABEL}`);
-    checkUpdateBtn.textContent = origText;
-    checkUpdateBtn.disabled = false;
+    addLog("system", `查看本机版本：${runtimeLabel}`);
   });
 
   body.appendChild(updateSec);
